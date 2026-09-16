@@ -6,3 +6,4 @@ parts/apps/firefox
 parts/apps/anydesk
 parts/office/microsoft-365
 parts/office/forticlient-vpn
+parts/tools/winfsp

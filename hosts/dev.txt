@@ -2,3 +2,4 @@ groups/debloat
 groups/dev-base
 parts/apps/winrar
 parts/apps/librewolf
+parts/tools/winfsp

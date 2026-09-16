@@ -1,0 +1,9 @@
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: winFsp
+  directives:
+    description: WinFsp
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: WinFsp.WinFsp
+    source: winget
