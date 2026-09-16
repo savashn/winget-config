@@ -60,6 +60,61 @@ winget configure -f out\office.winget --accept-configuration-agreements
 
 The command is repeatable; steps that are already installed or already set are skipped. One failing step does not stop the others, so check the output when it finishes.
 
+### Building A Bootable ISO Per Host
+
+`iso\build-iso.ps1` turns the official Windows 11 ISO into one unattended install ISO per host (`out\Win11-<host>.iso`). Booting it installs Windows without asking anything and, on the first logon, applies that host's `.winget` file in the background.
+
+> [!WARNING]
+> The ISO wipes disk 0 without asking. It also creates a local administrator named `User` with **no password**, sets the Turkish (`tr-TR`) locale and the Turkey time zone. Edit `iso\autounattend.template.xml` if that is not what you want.
+
+Extra requirements:
+
+- The official Windows 11 x64 ISO from [microsoft.com/software-download/windows11](https://www.microsoft.com/software-download/windows11) (browser download only)
+- `oscdimg.exe` from the Windows ADK "Deployment Tools" component- About 45 GB free: `iso\work\` holds one extracted copy plus one copy per host, and each ISO is ~6.5 GB
+
+```powershell
+.\build.ps1                                                      # make sure out\*.winget is current
+.\iso\build-iso.ps1 -SourceIso C:\Users\User\Downloads\Win11.iso # every host in hosts\
+.\iso\build-iso.ps1 -SourceIso C:\Users\User\Downloads\Win11.iso -Hosts office
+```
+
+The source ISO is extracted into `iso\work\extracted` once and reused on later runs. Delete `iso\work\` afterwards to reclaim the space.
+
+What ends up on the installed machine:
+
+| Path | What it is |
+|---|---|
+| `C:\ProvisioningData\<host>.winget` | The host's config, copied from `out\` |
+| `C:\ProvisioningData\provision.ps1` | Started once by a `RunOnce` entry at the first logon (from `iso\provision.template.ps1`); waits for winget and the network, runs `winget configure --enable`, then applies the `.winget` file |
+| `C:\ProvisioningData\<host>.log` | Output of that run |
+
+Setup and the first logon need no input. After the desktop appears, a PowerShell window titled "Setting up this computer" shows the progress; it can take a long time, so leave it open until it asks you to press Enter. Its output is also in the log. If the `Provisioning` value is still under `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce`, the script never started.
+
+#### Testing in QEMU before using real hardware
+
+```powershell
+winget install --id SoftwareFreedomConservancy.QEMU -e
+qemu-img create -f qcow2 test-disk.qcow2 64G
+qemu-system-x86_64 `
+  -m 8G -smp 4 -machine q35 -accel whpx `
+  -drive if=pflash,format=raw,readonly=on,file="OVMF_CODE.fd" `
+  -drive if=pflash,format=raw,file="OVMF_VARS.fd" `
+  -drive file=out\Win11-office.iso,media=cdrom `
+  -drive file=test-disk.qcow2,if=virtio
+```
+
+The OVMF files ship with QEMU (look under `share\`, e.g. `edk2-x86_64-code.fd`). `-accel whpx` needs Hyper-V; `-accel tcg` works without it, only much slower. Start every attempt from a fresh disk: a failed install leaves a half-installed system that keeps failing.
+
+#### Writing it to USB
+
+With Rufus, pick GPT / UEFI (non CSM) and **leave every box in the "Windows User Experience" dialog unticked**; otherwise Rufus writes its own `autounattend.xml` over this one. With Ventoy, just copy the `.iso` files onto the stick.
+
+#### Troubleshooting
+
+- **Setup loops on "The computer restarted unexpectedly or encountered an unexpected error"**: a command in the specialize pass of `autounattend.xml` is invalid. The usual cause is a `RunSynchronousCommand/Path` longer than 259 characters. Put longer logic into a script under `$OEM$` and call that instead; `build-iso.ps1` refuses to build a line over the limit.
+- **Setup still asks for language or account**: `autounattend.xml` is not at the media root. Check `iso\work\build-<host>\autounattend.xml`.
+- **The wrong edition gets installed**: list the editions with `dism /Get-WimInfo /WimFile:D:\sources\install.wim` and change `/IMAGE/INDEX` in `iso\autounattend.template.xml`.
+
 ## Layout
 
 ```
@@ -67,8 +122,9 @@ parts/    Steps. Each .yaml file is one or more winget steps (in today's .winget
           Data files next to them (e.g. win11debloat.json) are embedded into the step at build time.
 groups/   Lists of parts shared by several hosts (client-base, debloat, dev-base).
 hosts/    One list per machine: each line names a parts/... or groups/... entry.
-out/      The .winget files build.ps1 generates. Do not edit by hand.
+out/      The .winget files build.ps1 generates (and the ISOs iso\build-iso.ps1 builds). Do not edit by hand.
 build.ps1 Generates and validates out/ files from the hosts/ lists.
+iso/      build-iso.ps1 and the autounattend.xml template for unattended install ISOs. work/ is its scratch space.
 ```
 
 ## Useful commands

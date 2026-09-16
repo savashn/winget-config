@@ -103,6 +103,45 @@ host file and `out/_verify.winget`.
 
 Never hand-edit `out/`.
 
+## Install ISOs (`iso/`)
+
+`iso/build-iso.ps1` consumes `out/<host>.winget` as-is; it does not relax the
+standalone rule above. It never builds the `.winget` files itself - run
+`build.ps1` first.
+
+- **`RunSynchronousCommand/Path` in `autounattend.xml` is capped at 259
+  characters.** Over the limit, Setup fails in the specialize pass with "The
+  computer restarted unexpectedly..." and loops on every reboot. That is why the
+  RunOnce entry only calls `C:\ProvisioningData\provision.ps1` (written by the
+  build into `$OEM$`) instead of carrying an `-EncodedCommand`. Keep logic in that
+  script, not on the command line; the build throws if the line gets too long.
+- That script is `iso/provision.template.ps1`. It runs under Windows PowerShell
+  5.1, so keep it 5.1-compatible and ASCII. A fresh Windows image ships an old
+  winget with `winget configure` disabled ("Configuration is not enabled").
+  The script runs `winget configure --enable` first. It must be the only
+  argument (winget rejects it next to anything else, even
+  `--disable-interactivity`). It updates App Installer through the Store and at
+  the first logon sits at 95% for a long time - slow, not stuck; it does finish.
+  Never put a timeout on winget steps. Because the update replaces the running
+  winget, `--enable` may exit non-zero although it worked, and for a short while
+  afterwards winget misreads its own command line ("Unrecognized command:
+  '...\winget.exe'"). The script therefore polls `winget configure validate`
+  until it exits 0 before applying.
+- `winget configure` keeps going when a step fails and then exits
+  `0x8A15C005` (SET_APPLY_FAILED). `Write-ApplySummary` in the script lists the
+  failed steps by parsing winget's English results output (`<Resource> [<id>]`,
+  then an indented status line). If winget changes that format the summary says
+  it found no results instead of guessing; re-check against a throwaway config
+  with a `Script` step whose `SetScript` throws.
+- The script window is visible on purpose: a hidden one made a working run look
+  like it had failed. RunOnce deletes its entry before running, so a failed run
+  is not retried - log enough to diagnose it.
+- An unattended `LocalAccount` needs a `<Password>` element even for an empty
+  password; without it Windows forces a password change at the first logon.
+- `iso/work/` (~25 GB) and the `.iso` files are build output and stay out of git.
+- Changes here can only be verified by installing: build one host and install it
+  in QEMU on a fresh disk.
+
 ## Known dead ends
 
 - **FortiClient VPN online installer cannot run unattended.** It ignores the
