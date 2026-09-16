@@ -1,5 +1,4 @@
 groups/debloat
-parts/drivers/virtio
 parts/apps/winrar
 parts/apps/librewolf
 parts/apps/chrome

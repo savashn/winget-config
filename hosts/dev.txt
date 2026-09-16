@@ -1,5 +1,4 @@
 groups/debloat
 groups/dev-base
-parts/drivers/virtio
 parts/apps/winrar
 parts/apps/librewolf
