@@ -1,0 +1,55 @@
+- resource: Microsoft.Windows.Developer/WindowsCapability
+  id: sshClient
+  directives:
+    description: OpenSSH client
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    Name: OpenSSH.Client~~~~0.0.1.0
+    Ensure: Present
+
+- resource: Microsoft.Windows.Developer/WindowsCapability
+  id: sshServer
+  directives:
+    description: OpenSSH server
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    Name: OpenSSH.Server~~~~0.0.1.0
+    Ensure: Present
+
+- resource: PSDscResources/Service
+  id: sshdService
+  dependsOn:
+    - sshServer
+  directives:
+    description: sshd service, automatic startup and running
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    Name: sshd
+    StartupType: Automatic
+    State: Running
+
+# Installing the OpenSSH server creates this rule; here we make sure it stays
+# enabled, and recreate it if it was removed.
+- resource: Microsoft.Windows.Developer/FirewallRule
+  id: sshFirewall
+  dependsOn:
+    - sshServer
+  directives:
+    description: Firewall rule allowing SSH (TCP 22)
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    Name: OpenSSH-Server-In-TCP
+    DisplayName: OpenSSH Server (sshd)
+    Direction: Inbound
+    Action: Allow
+    Protocol: TCP
+    LocalPort:
+      - '22'
+    # Left empty, the resource passes a null Profile to Set-NetFirewallRule and fails.
+    Profiles:
+      - Any
+    Enabled: true

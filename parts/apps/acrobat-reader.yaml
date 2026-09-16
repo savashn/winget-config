@@ -1,0 +1,9 @@
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: acrobatReader
+  directives:
+    description: Adobe Acrobat Reader (64-bit)
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: Adobe.Acrobat.Reader.64-bit
+    source: winget

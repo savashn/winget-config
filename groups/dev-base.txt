@@ -1,0 +1,9 @@
+parts/windows/developer-mode
+parts/tools/process-explorer
+parts/dev/ssh
+parts/dev/git
+parts/dev/nodejs
+parts/dev/rust
+parts/dev/docker
+parts/dev/vscode
+parts/dev/claude-code

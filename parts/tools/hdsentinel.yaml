@@ -1,0 +1,10 @@
+# Standard (free) edition; Professional needs a paid licence.
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: hdSentinel
+  directives:
+    description: Hard Disk Sentinel Standard
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: JanosMathe.HardDiskSentinel.Standard
+    source: winget

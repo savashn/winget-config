@@ -1,0 +1,57 @@
+# Display resolution: there is no ready-made DSC resource, so the Win32
+# ChangeDisplaySettings API is used (primary display). The mode is tested
+# first; with no display adapter, or an unsupported mode, the step fails.
+# It runs after VirtIO because those drivers can change the display adapter.
+# Note: RDP sessions take their resolution from the client; this setting
+# affects the console display (VM screen, AnyDesk).
+- resource: PSDscResources/Script
+  id: displayResolution
+  dependsOn:
+    - virtio
+  directives:
+    description: Display resolution 1920x1080
+    allowPrerelease: true
+  settings:
+    GetScript: |
+      $gpu = Get-CimInstance Win32_VideoController | Where-Object CurrentHorizontalResolution | Select-Object -First 1
+      return @{ Result = $(if ($gpu) { "$($gpu.CurrentHorizontalResolution)x$($gpu.CurrentVerticalResolution)" } else { 'no display adapter' }) }
+    TestScript: |
+      $gpu = Get-CimInstance Win32_VideoController | Where-Object CurrentHorizontalResolution | Select-Object -First 1
+      return [bool]($gpu -and $gpu.CurrentHorizontalResolution -eq 1920 -and $gpu.CurrentVerticalResolution -eq 1080)
+    SetScript: |
+      if (-not ('WinGetCfg.DisplayMode' -as [type])) {
+      Add-Type -TypeDefinition @'
+      using System;
+      using System.Runtime.InteropServices;
+      namespace WinGetCfg {
+        public static class DisplayMode {
+          [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+          struct DEVMODE {
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmDeviceName;
+            public short dmSpecVersion, dmDriverVersion, dmSize, dmDriverExtra;
+            public int dmFields, dmPositionX, dmPositionY, dmDisplayOrientation, dmDisplayFixedOutput;
+            public short dmColor, dmDuplex, dmYResolution, dmTTOption, dmCollate;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmFormName;
+            public short dmLogPixels;
+            public int dmBitsPerPel, dmPelsWidth, dmPelsHeight, dmDisplayFlags, dmDisplayFrequency;
+            public int dmICMMethod, dmICMIntent, dmMediaType, dmDitherType, dmReserved1, dmReserved2, dmPanningWidth, dmPanningHeight;
+          }
+          [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern bool EnumDisplaySettings(string dev, int mode, ref DEVMODE dm);
+          [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int ChangeDisplaySettings(ref DEVMODE dm, int flags);
+          // 0 = success, 1 = restart required, negative = error (-100: no display)
+          public static int Set(int width, int height) {
+            var dm = new DEVMODE();
+            dm.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE));
+            if (!EnumDisplaySettings(null, -1, ref dm)) return -100;
+            dm.dmPelsWidth = width;
+            dm.dmPelsHeight = height;
+            dm.dmFields = 0x80000 | 0x100000; // DM_PELSWIDTH | DM_PELSHEIGHT
+            int result = ChangeDisplaySettings(ref dm, 0x2); // CDS_TEST
+            return result != 0 ? result : ChangeDisplaySettings(ref dm, 0x1); // CDS_UPDATEREGISTRY
+          }
+        }
+      }
+      '@
+      }
+      $r = [WinGetCfg.DisplayMode]::Set(1920, 1080)
+      if ($r -notin 0, 1) { throw "Could not set 1920x1080 (ChangeDisplaySettings result $r): no display adapter or mode not supported." }

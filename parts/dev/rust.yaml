@@ -1,0 +1,36 @@
+# Rust needs MSVC to link on Windows (msvc toolchain).
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: vsBuildTools
+  directives:
+    description: Visual Studio 2022 Build Tools
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: Microsoft.VisualStudio.2022.BuildTools
+    source: winget
+
+- resource: Microsoft.VisualStudio.DSC/VSComponents
+  id: vcTools
+  dependsOn:
+    - vsBuildTools
+  directives:
+    description: MSVC C++ build tools and Windows SDK
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    productId: Microsoft.VisualStudio.Product.BuildTools
+    channelId: VisualStudio.17.Release
+    includeRecommended: true
+    components:
+      - Microsoft.VisualStudio.Workload.VCTools
+
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: rustup
+  dependsOn:
+    - vcTools
+  directives:
+    description: Rustup (rustc, cargo, stable toolchain)
+    allowPrerelease: true
+  settings:
+    id: Rustlang.Rustup
+    source: winget

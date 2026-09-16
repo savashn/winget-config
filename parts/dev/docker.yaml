@@ -1,0 +1,46 @@
+# Docker Desktop uses the WSL2 backend; enabling the Windows features may
+# require a restart.
+- resource: PSDscResources/WindowsOptionalFeature
+  id: vmPlatform
+  directives:
+    description: Virtual Machine Platform (for WSL2)
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    Name: VirtualMachinePlatform
+    Ensure: Present
+
+- resource: PSDscResources/WindowsOptionalFeature
+  id: wslFeature
+  directives:
+    description: Windows Subsystem for Linux feature
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    Name: Microsoft-Windows-Subsystem-Linux
+    Ensure: Present
+
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: wsl
+  dependsOn:
+    - vmPlatform
+    - wslFeature
+  directives:
+    description: WSL
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: Microsoft.WSL
+    source: winget
+
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: dockerDesktop
+  dependsOn:
+    - wsl
+  directives:
+    description: Docker Desktop
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: Docker.DockerDesktop
+    source: winget

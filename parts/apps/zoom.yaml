@@ -1,0 +1,9 @@
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: zoom
+  directives:
+    description: Zoom Workplace
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: Zoom.Zoom
+    source: winget

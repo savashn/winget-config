@@ -1,0 +1,85 @@
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: vscode
+  directives:
+    description: Visual Studio Code
+    allowPrerelease: true
+  settings:
+    id: Microsoft.VisualStudioCode
+    source: winget
+
+- resource: Microsoft.VSCode.Dsc/VSCodeExtension
+  id: extClaudeCode
+  dependsOn:
+    - vscode
+  directives:
+    description: Claude Code
+    allowPrerelease: true
+  settings:
+    Name: anthropic.claude-code
+    Exist: true
+
+- resource: Microsoft.VSCode.Dsc/VSCodeExtension
+  id: extTailwind
+  dependsOn:
+    - vscode
+  directives:
+    description: Tailwind CSS IntelliSense
+    allowPrerelease: true
+  settings:
+    Name: bradlc.vscode-tailwindcss
+    Exist: true
+
+- resource: Microsoft.VSCode.Dsc/VSCodeExtension
+  id: extEslint
+  dependsOn:
+    - vscode
+  directives:
+    description: ESLint
+    allowPrerelease: true
+  settings:
+    Name: dbaeumer.vscode-eslint
+    Exist: true
+
+- resource: Microsoft.VSCode.Dsc/VSCodeExtension
+  id: extPrettier
+  dependsOn:
+    - vscode
+  directives:
+    description: Prettier
+    allowPrerelease: true
+  settings:
+    Name: esbenp.prettier-vscode
+    Exist: true
+
+- resource: Microsoft.VSCode.Dsc/VSCodeExtension
+  id: extPowerShell
+  dependsOn:
+    - vscode
+  directives:
+    description: PowerShell
+    allowPrerelease: true
+  settings:
+    Name: ms-vscode.powershell
+    Exist: true
+
+- resource: Microsoft.VSCode.Dsc/VSCodeExtension
+  id: extSvelte
+  dependsOn:
+    - vscode
+  directives:
+    description: Svelte for VS Code
+    allowPrerelease: true
+  settings:
+    Name: svelte.svelte-vscode
+    Exist: true
+
+- resource: Microsoft.VSCode.Dsc/VSCodeExtension
+  id: extToml
+  dependsOn:
+    - vscode
+  directives:
+    description: Even Better TOML
+    allowPrerelease: true
+  settings:
+    Name: tamasfe.even-better-toml
+    Exist: true

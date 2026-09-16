@@ -1,0 +1,8 @@
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: zenBrowser
+  directives:
+    description: Zen Browser
+    allowPrerelease: true
+  settings:
+    id: Zen-Team.Zen-Browser
+    source: winget

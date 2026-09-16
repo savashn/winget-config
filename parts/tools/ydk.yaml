@@ -1,0 +1,48 @@
+# YDK: scheduled tasks that take a VSS snapshot three times a day
+# (https://github.com/savashn/YDK). ydk.ps1 is downloaded from the main
+# branch; whenever the installed file differs from main it is replaced on the
+# next config run. With no internet connection the installed version is
+# accepted as good enough.
+# If the tasks already exist only the file is replaced (the update path YDK
+# recommends); otherwise -Install runs with the default schedule.
+- resource: PSDscResources/Script
+  id: ydk
+  directives:
+    description: YDK (VSS snapshot tasks)
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    GetScript: |
+      $file = Join-Path $env:ProgramFiles 'YDK\ydk.ps1'
+      $hash = if (Test-Path $file) { (Get-FileHash $file -Algorithm SHA256).Hash } else { 'not installed' }
+      $tasks = (Get-ScheduledTask -TaskPath '\' -ErrorAction SilentlyContinue | Where-Object TaskName -match '^YDK\d+$' | ForEach-Object TaskName) -join ', '
+      return @{ Result = "ydk.ps1 $hash; tasks: $tasks" }
+    TestScript: |
+      $file = Join-Path $env:ProgramFiles 'YDK\ydk.ps1'
+      if (-not (Test-Path $file) -or -not (Get-ScheduledTask -TaskName 'YDK0' -TaskPath '\' -ErrorAction SilentlyContinue)) { return $false }
+      try {
+        $resp = Invoke-WebRequest 'https://raw.githubusercontent.com/savashn/YDK/main/ydk.ps1' -UseBasicParsing
+        $latest = (Get-FileHash -InputStream $resp.RawContentStream -Algorithm SHA256).Hash
+      } catch { return $true }
+      return [bool]((Get-FileHash $file -Algorithm SHA256).Hash -eq $latest)
+    SetScript: |
+      $dir = Join-Path $env:ProgramFiles 'YDK'
+      $file = Join-Path $dir 'ydk.ps1'
+      $download = "$file.download"
+      New-Item -ItemType Directory -Force -Path $dir | Out-Null
+      try {
+        Invoke-WebRequest 'https://raw.githubusercontent.com/savashn/YDK/main/ydk.ps1' -OutFile $download -UseBasicParsing
+        # Never hand a corrupt or half-downloaded file to tasks running as SYSTEM.
+        $errors = $null
+        [void][System.Management.Automation.Language.Parser]::ParseFile($download, [ref]$null, [ref]$errors)
+        if ($errors) { throw "Downloaded ydk.ps1 has syntax errors: $($errors[0].Message)" }
+        Move-Item $download $file -Force
+      } finally {
+        # YDK -Uninstall leaves the folder behind if it holds files it does not know.
+        Remove-Item $download -Force -ErrorAction SilentlyContinue
+      }
+      if (-not (Get-ScheduledTask -TaskName 'YDK0' -TaskPath '\' -ErrorAction SilentlyContinue)) {
+        # YDK prints the reason to the console; winget hides it, so the output is folded into the error.
+        $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $file -Install 2>&1 | Out-String
+        if ($LASTEXITCODE -ne 0) { throw "ydk.ps1 -Install failed with exit code ${LASTEXITCODE}:`n$output" }
+      }

@@ -1,0 +1,10 @@
+# New Teams (work/school account). The MSIX package installs per user, so this
+# step does not run elevated.
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: teams
+  directives:
+    description: Microsoft Teams
+    allowPrerelease: true
+  settings:
+    id: Microsoft.Teams
+    source: winget

@@ -1,0 +1,9 @@
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: nodejs
+  directives:
+    description: Node.js LTS (ships with npm)
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: OpenJS.NodeJS.LTS
+    source: winget

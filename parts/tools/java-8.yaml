@@ -1,0 +1,10 @@
+# Oracle's Java 8 runtime (JRE, not the JDK).
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: java8
+  directives:
+    description: Java 8
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: Oracle.JavaRuntimeEnvironment
+    source: winget

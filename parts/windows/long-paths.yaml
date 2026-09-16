@@ -1,0 +1,8 @@
+- resource: Microsoft.Windows.Developer/EnableLongPathSupport
+  id: longPaths
+  directives:
+    description: Long path support
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    Ensure: Present

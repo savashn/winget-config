@@ -1,0 +1,11 @@
+# Rufus: writes a bootable USB stick from a single ISO. The program needs to
+# run elevated; this step only installs it, writing media is done by hand.
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: rufus
+  directives:
+    description: Rufus
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: Rufus.Rufus
+    source: winget

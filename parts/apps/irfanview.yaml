@@ -1,0 +1,9 @@
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: irfanView
+  directives:
+    description: IrfanView
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: IrfanSkiljan.IrfanView
+    source: winget

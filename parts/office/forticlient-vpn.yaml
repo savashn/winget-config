@@ -1,0 +1,54 @@
+# FortiClient VPN is in neither winget nor the Microsoft Store, and its
+# installer is a binary, so it cannot be embedded in the .winget file. The
+# public Fortinet online installer is downloaded and run at apply time:
+#
+# - Nothing is executed unless the downloaded file carries a valid
+#   Authenticode signature from Fortinet.
+# - This installer ignores the command line entirely -- /quiet, /silent, /S,
+#   /q, /qn, -s and --silent were all tried and every one of them opens the
+#   wizard (its log says DoManuallyDrivenInstallation_UsingMSIGui). So a setup
+#   window appears and you have to click through it; this is the only step in
+#   the config that needs a human.
+# - If it does not finish within 30 minutes the process is killed and the step
+#   fails; the rest of the config is unaffected. Closing the wizard without
+#   installing also fails the step.
+# - The online installer offers no version choice; every machine gets whatever
+#   is current at the time.
+- resource: PSDscResources/Script
+  id: fortiClientVpn
+  directives:
+    description: FortiClient VPN (opens a setup window)
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    GetScript: |
+      $app = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall' -ErrorAction SilentlyContinue |
+        Where-Object { $_.GetValue('DisplayName') -like 'FortiClient*' } | Select-Object -First 1
+      return @{ Result = $(if ($app) { [string]$app.GetValue('DisplayVersion') } else { '' }) }
+    TestScript: |
+      $app = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall' -ErrorAction SilentlyContinue |
+        Where-Object { $_.GetValue('DisplayName') -like 'FortiClient*' } | Select-Object -First 1
+      return [bool]$app
+    SetScript: |
+      $exe = Join-Path $env:TEMP 'winget-config-forticlientvpn.exe'
+      Invoke-WebRequest 'https://links.fortinet.com/forticlient/win/vpnagent' -OutFile $exe -UseBasicParsing
+
+      $sig = Get-AuthenticodeSignature $exe
+      if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notlike '*Fortinet*') {
+        Remove-Item $exe -Force -ErrorAction SilentlyContinue
+        throw "FortiClient installer signature not trusted: $($sig.Status) / $($sig.SignerCertificate.Subject)"
+      }
+
+      try {
+        $p = Start-Process $exe -PassThru
+        if (-not $p.WaitForExit(1800000)) {
+          $p.Kill($true)
+          throw 'FortiClient setup wizard was not completed within 30 minutes'
+        }
+      } finally {
+        Remove-Item $exe -Force -ErrorAction SilentlyContinue
+      }
+
+      $app = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall' -ErrorAction SilentlyContinue |
+        Where-Object { $_.GetValue('DisplayName') -like 'FortiClient*' } | Select-Object -First 1
+      if (-not $app) { throw 'FortiClient setup wizard closed without installing (cancelled?)' }

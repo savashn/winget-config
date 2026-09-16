@@ -1,0 +1,12 @@
+# Ventoy: install it once onto a USB stick and then just copy ISO files onto
+# it to get multiboot install media. This step only installs the program;
+# writing to a USB stick means running the Ventoy2Disk GUI by hand.
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: ventoy
+  directives:
+    description: Ventoy
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: Ventoy.Ventoy
+    source: winget

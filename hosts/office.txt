@@ -1,0 +1,9 @@
+groups/debloat
+parts/drivers/virtio
+parts/apps/winrar
+parts/apps/librewolf
+parts/apps/chrome
+parts/apps/firefox
+parts/apps/anydesk
+parts/office/microsoft-365
+parts/office/forticlient-vpn

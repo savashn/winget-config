@@ -1,0 +1,9 @@
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: chrome
+  directives:
+    description: Google Chrome
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: Google.Chrome
+    source: winget

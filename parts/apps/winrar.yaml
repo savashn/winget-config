@@ -1,0 +1,11 @@
+# WinRAR is commercial software: once the 40-day trial is over it starts
+# showing a nag window asking you to buy a licence, but keeps working.
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: winrar
+  directives:
+    description: WinRAR
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: RARLab.WinRAR
+    source: winget

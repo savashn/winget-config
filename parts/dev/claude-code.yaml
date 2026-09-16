@@ -1,0 +1,10 @@
+# Claude Code CLI (claude). The portable package installs per user, so this
+# step does not run elevated; the command appears in newly opened terminals.
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: claudeCode
+  directives:
+    description: Claude Code CLI
+    allowPrerelease: true
+  settings:
+    id: Anthropic.ClaudeCode
+    source: winget

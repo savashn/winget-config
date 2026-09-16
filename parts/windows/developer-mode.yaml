@@ -1,0 +1,8 @@
+- resource: Microsoft.Windows.Developer/DeveloperMode
+  id: developerMode
+  directives:
+    description: Developer mode
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    Ensure: Present

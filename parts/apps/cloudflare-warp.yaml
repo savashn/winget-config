@@ -1,0 +1,9 @@
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: cloudflareWarp
+  directives:
+    description: Cloudflare WARP
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: Cloudflare.Warp
+    source: winget

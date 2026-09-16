@@ -1,0 +1,10 @@
+# Turkish build; use id: Mozilla.Thunderbird for English.
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: thunderbird
+  directives:
+    description: Mozilla Thunderbird (tr)
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: Mozilla.Thunderbird.tr
+    source: winget

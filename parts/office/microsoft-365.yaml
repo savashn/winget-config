@@ -1,0 +1,39 @@
+# The Microsoft.Office package in winget downloads from a fixed URL (the
+# officecdn setup.exe); every time Microsoft updates that file the manifest
+# hash no longer matches and the install fails with "installer hash does not
+# match". So the Office Deployment Tool is downloaded directly and verified
+# against Microsoft's signature instead of a hash.
+- resource: PSDscResources/Script
+  id: office
+  directives:
+    description: Microsoft 365 Apps (Word, Excel, PowerPoint, Outlook...)
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    GetScript: |
+      $c2r = Get-Item 'HKLM:\SOFTWARE\Microsoft\Office\ClickToRun\Configuration' -ErrorAction SilentlyContinue
+      return @{ Result = $(if ($c2r) { "$($c2r.GetValue('ProductReleaseIds')) $($c2r.GetValue('VersionToReport'))".Trim() } else { '' }) }
+    TestScript: |
+      $c2r = Get-Item 'HKLM:\SOFTWARE\Microsoft\Office\ClickToRun\Configuration' -ErrorAction SilentlyContinue
+      $ids = if ($c2r) { [string]$c2r.GetValue('ProductReleaseIds') } else { '' }
+      return [bool](($ids -split ',') -contains 'O365ProPlusRetail')
+    SetScript: |
+      $dir = Join-Path $env:TEMP 'winget-config-office'
+      New-Item -ItemType Directory -Force -Path $dir | Out-Null
+      $setup = Join-Path $dir 'setup.exe'
+      $config = Join-Path $dir 'config.xml'
+      Invoke-WebRequest 'https://officecdn.microsoft.com/pr/wsus/setup.exe' -OutFile $setup -UseBasicParsing
+      $sig = Get-AuthenticodeSignature $setup
+      if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') { throw "Office setup.exe signature is not valid: $($sig.Status)" }
+      Set-Content -Path $config -Encoding UTF8 -Value @'
+      <Configuration>
+        <Add OfficeClientEdition="64" Channel="Current">
+          <Product ID="O365ProPlusRetail">
+            <Language ID="MatchOS" Fallback="en-us" />
+          </Product>
+        </Add>
+        <Display Level="None" AcceptEULA="TRUE" />
+      </Configuration>
+      '@
+      $p = Start-Process $setup -ArgumentList "/configure `"$config`"" -Wait -PassThru
+      if ($p.ExitCode -ne 0) { throw "Office setup failed with exit code $($p.ExitCode)" }

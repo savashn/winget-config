@@ -1,0 +1,9 @@
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: anydesk
+  directives:
+    description: AnyDesk
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: AnyDesk.AnyDesk
+    source: winget

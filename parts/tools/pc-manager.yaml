@@ -1,0 +1,11 @@
+# Microsoft PC Manager is not on the winget source, only on the Microsoft
+# Store; it installs per user like an MSIX package, so this step does not run
+# elevated.
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: pcManager
+  directives:
+    description: Microsoft PC Manager
+    allowPrerelease: true
+  settings:
+    id: 9PM860492SZD
+    source: msstore

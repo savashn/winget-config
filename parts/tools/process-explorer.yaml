@@ -1,0 +1,9 @@
+# Portable package, installs per user, so this step does not run elevated.
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: processExplorer
+  directives:
+    description: Process Explorer
+    allowPrerelease: true
+  settings:
+    id: Microsoft.Sysinternals.ProcessExplorer
+    source: winget

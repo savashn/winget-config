@@ -1,0 +1,9 @@
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: librewolf
+  directives:
+    description: LibreWolf
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: LibreWolf.LibreWolf
+    source: winget

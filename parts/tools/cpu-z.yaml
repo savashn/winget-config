@@ -1,0 +1,9 @@
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: cpuZ
+  directives:
+    description: CPU-Z
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: CPUID.CPU-Z
+    source: winget

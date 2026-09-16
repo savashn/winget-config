@@ -1,0 +1,11 @@
+parts/tools/ydk
+parts/apps/acrobat-reader
+parts/apps/anydesk
+parts/apps/chrome
+parts/apps/winrar
+parts/tools/cpu-z
+parts/tools/hdsentinel
+parts/tools/pc-manager
+parts/tools/process-explorer
+parts/office/microsoft-365
+parts/office/forticlient-vpn

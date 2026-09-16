@@ -1,0 +1,9 @@
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: teamViewer
+  directives:
+    description: TeamViewer
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: TeamViewer.TeamViewer
+    source: winget

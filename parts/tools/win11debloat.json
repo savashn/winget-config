@@ -1,0 +1,187 @@
+{
+  "Version": "1.0",
+  "Apps": [
+    "Clipchamp.Clipchamp",
+    "Microsoft.3DBuilder",
+    "Microsoft.549981C3F5F10",
+    "Microsoft.BingFinance",
+    "Microsoft.BingFoodAndDrink",
+    "Microsoft.BingHealthAndFitness",
+    "Microsoft.BingNews",
+    "Microsoft.BingSports",
+    "Microsoft.BingTranslator",
+    "Microsoft.BingTravel",
+    "Microsoft.BingWeather",
+    "XP9CXNGPPJ97XX",
+    "Microsoft.Windows.AIHub",
+    "Microsoft.PCManager",
+    "Microsoft.Getstarted",
+    "Microsoft.Messaging",
+    "Microsoft.Microsoft3DViewer",
+    "Microsoft.MicrosoftJournal",
+    "Microsoft.MicrosoftOfficeHub",
+    "Microsoft.MicrosoftPowerBIForWindows",
+    "Microsoft.MicrosoftSolitaireCollection",
+    "Microsoft.MicrosoftStickyNotes",
+    "Microsoft.MixedReality.Portal",
+    "Microsoft.NetworkSpeedTest",
+    "Microsoft.News",
+    "Microsoft.Office.OneNote",
+    "Microsoft.Office.Sway",
+    "Microsoft.OneConnect",
+    "Microsoft.Print3D",
+    "Microsoft.PowerAutomateDesktop",
+    "Microsoft.SkypeApp",
+    "Microsoft.Todos",
+    "Microsoft.Windows.DevHome",
+    "Microsoft.WindowsAlarms",
+    "Microsoft.WindowsFeedbackHub",
+    "Microsoft.WindowsMaps",
+    "Microsoft.WindowsSoundRecorder",
+    "Microsoft.XboxApp",
+    "Microsoft.ZuneVideo",
+    "MicrosoftCorporationII.MicrosoftFamily",
+    "MicrosoftCorporationII.QuickAssist",
+    "MicrosoftTeams",
+    "ACGMediaPlayer",
+    "ActiproSoftwareLLC",
+    "AdobeSystemsIncorporated.AdobePhotoshopExpress",
+    "Amazon.com.Amazon",
+    "AmazonVideo.PrimeVideo",
+    "Asphalt8Airborne",
+    "AutodeskSketchBook",
+    "CaesarsSlotsFreeCasino",
+    "COOKINGFEVER",
+    "CyberLinkMediaSuiteEssentials",
+    "DisneyMagicKingdoms",
+    "Disney.37853FC22B2CE",
+    "DrawboardPDF",
+    "Duolingo-LearnLanguagesforFree",
+    "EclipseManager",
+    "FACEBOOK.FACEBOOK",
+    "FarmVille2CountryEscape",
+    "Flipboard",
+    "HiddenCity",
+    "HULULLC.HULUPLUS",
+    "iHeartRadio",
+    "Facebook.Instagram",
+    "king.com.BubbleWitch3Saga",
+    "king.com.CandyCrushSaga",
+    "king.com.CandyCrushSodaSaga",
+    "LinkedInforWindows",
+    "MarchofEmpires",
+    "4DF9E0F8.Netflix",
+    "NYTCrossword",
+    "OneCalendar",
+    "PandoraMediaInc",
+    "PhototasticCollage",
+    "PicsArt-PhotoStudio",
+    "PolarrPhotoEditorAcademicEdition",
+    "flaregamesGmbH.RoyalRevolt",
+    "Sidia.LiveWallpaper",
+    "SlingTV",
+    "SpotifyAB.SpotifyMusic",
+    "BytedancePte.Ltd.TikTok",
+    "TuneInRadio",
+    "WinZipUniversal",
+    "Microsoft.Paint",
+    "Microsoft.WindowsCalculator",
+    "Microsoft.OneDrive"
+  ],
+  "Tweaks": [
+    {
+      "Name": "EnableDarkMode",
+      "Value": true
+    },
+    {
+      "Name": "RevertContextMenu",
+      "Value": true
+    },
+    {
+      "Name": "DisableTelemetry",
+      "Value": true
+    },
+    {
+      "Name": "DisableSuggestions",
+      "Value": true
+    },
+    {
+      "Name": "DisableEdgeAds",
+      "Value": true
+    },
+    {
+      "Name": "DisableLockscreenTips",
+      "Value": true
+    },
+    {
+      "Name": "DisableBing",
+      "Value": true
+    },
+    {
+      "Name": "DisableStoreSearchSuggestions",
+      "Value": true
+    },
+    {
+      "Name": "DisableCopilot",
+      "Value": true
+    },
+    {
+      "Name": "DisableRecall",
+      "Value": true
+    },
+    {
+      "Name": "DisableClickToDo",
+      "Value": true
+    },
+    {
+      "Name": "DisableAISvcAutoStart",
+      "Value": true
+    },
+    {
+      "Name": "DisableWidgets",
+      "Value": true
+    },
+    {
+      "Name": "HideChat",
+      "Value": true
+    },
+    {
+      "Name": "ShowKnownFileExt",
+      "Value": true
+    },
+    {
+      "Name": "DisableDragTray",
+      "Value": true
+    },
+    {
+      "Name": "Hide3dObjects",
+      "Value": true
+    },
+    {
+      "Name": "DisableModernStandbyNetworking",
+      "Value": true
+    }
+  ],
+  "Deployment": [
+    {
+      "Name": "UserSelectionIndex",
+      "Value": 0
+    },
+    {
+      "Name": "AppRemovalScopeIndex",
+      "Value": 0
+    },
+    {
+      "Name": "CreateRestorePoint",
+      "Value": false
+    },
+    {
+      "Name": "SkipRegistryBackup",
+      "Value": false
+    },
+    {
+      "Name": "RestartExplorer",
+      "Value": true
+    }
+  ]
+}

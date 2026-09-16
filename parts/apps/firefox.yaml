@@ -1,0 +1,10 @@
+# Turkish build; use id: Mozilla.Firefox for English.
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: firefox
+  directives:
+    description: Mozilla Firefox (tr)
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: Mozilla.Firefox.tr
+    source: winget

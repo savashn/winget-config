@@ -1,0 +1,32 @@
+- resource: Microsoft.Windows.Developer/EnableRemoteDesktop
+  id: remoteDesktop
+  directives:
+    description: Allow Remote Desktop connections
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    Ensure: Present
+
+# EnableRemoteDesktop only changes the registry; this enables the built-in
+# Windows RDP firewall rules by their language-independent names.
+# Microsoft.Windows.Developer/FirewallRule is not used here: unless every
+# field (Action, Direction, Profiles, ...) is supplied it passes empty values
+# to Set-NetFirewallRule and fails, and when they are supplied it overwrites
+# the built-in rule's name and description. This step only enables the rules.
+- resource: PSDscResources/Script
+  id: rdpFirewall
+  dependsOn:
+    - remoteDesktop
+  directives:
+    description: Firewall rule allowing RDP (TCP/UDP 3389)
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    GetScript: |
+      $rules = Get-NetFirewallRule -Name 'RemoteDesktop-UserMode-In-TCP', 'RemoteDesktop-UserMode-In-UDP' -ErrorAction SilentlyContinue
+      return @{ Result = ($rules | ForEach-Object { "$($_.Name)=$($_.Enabled)" }) -join ', ' }
+    TestScript: |
+      $rules = @(Get-NetFirewallRule -Name 'RemoteDesktop-UserMode-In-TCP', 'RemoteDesktop-UserMode-In-UDP' -ErrorAction SilentlyContinue)
+      return [bool]($rules.Count -eq 2 -and -not ($rules | Where-Object Enabled -ne 'True'))
+    SetScript: |
+      Enable-NetFirewallRule -Name 'RemoteDesktop-UserMode-In-TCP', 'RemoteDesktop-UserMode-In-UDP' -ErrorAction Stop

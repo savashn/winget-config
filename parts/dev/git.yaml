@@ -1,0 +1,9 @@
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: git
+  directives:
+    description: Git
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: Git.Git
+    source: winget
