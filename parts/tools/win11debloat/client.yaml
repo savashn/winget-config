@@ -1,0 +1,21 @@
+- resource: PSDscResources/Script
+  id: win11Debloat
+  directives:
+    description: Win11Debloat (parts\tools\win11debloat\client.json)
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    GetScript: |
+      $key = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SOFTWARE\winget-config\Win11Debloat')
+      return @{ Result = $(if ($key) { "version $($key.GetValue('Version')); config $($key.GetValue('Applied'))" } else { 'not applied' }) }
+    TestScript: |
+      $key = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SOFTWARE\winget-config\Win11Debloat')
+      return [bool]($key -and $key.GetValue('Applied') -eq '${embedhash:parts/tools/win11debloat/client.json}')
+    SetScript: |
+      $hash = '${embedhash:parts/tools/win11debloat/client.json}'
+      # --- embedded config (source: parts\tools\win11debloat\client.json) ---
+      $json = @'
+      ${embed:parts/tools/win11debloat/client.json}
+      '@
+
+      ${embed:parts/tools/win11debloat/apply.ps1}

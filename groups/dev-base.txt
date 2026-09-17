@@ -1,5 +1,6 @@
 parts/windows/developer-mode
 parts/tools/process-explorer
+parts/tools/bulk-crap-uninstaller
 parts/dev/ssh
 parts/dev/git
 parts/dev/nodejs

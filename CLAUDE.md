@@ -25,8 +25,9 @@ Implemented in `build.ps1` (`Get-EmbedText`, `Get-EmbedHash`, `Expand-Embed`),
 expanded inside `Read-Part`, so everything downstream sees expanded text.
 
 - `${embed:<repo-relative path>}` must be alone on its line; the file's content is
-  written at that line's indentation. It is meant to sit inside a PowerShell
-  here-string (`@'` ... `'@`) in a `SetScript`.
+  written at that line's indentation. It usually sits inside a PowerShell
+  here-string (`@'` ... `'@`) in a `SetScript`; it may also stand directly in the
+  script body to share code between parts (`parts/tools/win11debloat/apply.ps1`).
 - `${embedhash:<repo-relative path>}` may appear anywhere on a line and is
   replaced by the file's SHA256. Prefer this over hashing at runtime: it keeps
   `TestScript` to one line and avoids embedding the same file twice.
@@ -36,8 +37,16 @@ expanded inside `Read-Part`, so everything downstream sees expanded text.
 - The build fails if an embedded file has a line starting with `'@` or `"@`.
 
 Keep the data file as its own file in `parts/` (for example
-`parts/tools/win11debloat.json`): it stays editable, round-trips through the
+`parts/tools/win11debloat/vm.json`): it stays editable, round-trips through the
 vendor's own import/export UI, and diffs readably. The build is what folds it in.
+
+When hosts need different data for the same step, make a folder named after the
+step with one variant part per data file (`parts/tools/win11debloat/vm.yaml` +
+`vm.json`, `client.yaml` + `client.json`). Only the embed/embedhash paths and the
+`description` differ between the variant parts; anything longer belongs in a
+shared file the variants embed (`apply.ps1`). Name variants by profile, not by
+host, so hosts can share one. Variants keep the same `id`, so the build rejects a
+host that lists two. Data files do not belong in `hosts/`, which only holds lists.
 
 ## Part file conventions
 
@@ -77,6 +86,36 @@ Two renames have been considered and rejected:
   `resource:` line names one.
 - `tools/` -> `scripts/`: switches the classification axis; would be neither
   complete nor exclusive.
+
+## Win11Debloat configs (`parts/tools/win11debloat/`)
+
+Each variant's JSON is Win11Debloat's own config format, so it can be edited in
+its UI ("Import/Export config"). What the upstream project accepts is in its
+[`Config/`](https://github.com/Raphire/Win11Debloat/tree/master/Config) folder:
+`Features.json` for `Tweaks`, `Apps.json` for `Apps`.
+
+- A `Tweaks` name is a `FeatureId` from `Features.json`, not the name of the
+  `.reg` file it applies (`ExplorerToThisPC` -> `Launch_File_Explorer_To_This_PC.reg`).
+- **A name Win11Debloat does not know is skipped without a word**
+  (`Import-ConfigToParams.ps1`), so a typo silently does nothing. So is a feature
+  outside its `MinVersion`/`MaxVersion` - `HideChat` (<= 22621), `Hide3dObjects`
+  and `HideMusic` (Windows 10 only) do nothing on Windows 11 - and
+  `DisableModernStandbyNetworking` on hardware without modern standby, which
+  includes most VMs. Setting `Value` to `false` is the same as leaving it out.
+- Some tweaks are alternatives of one setting and only one may be `true`:
+  `ExplorerTo*`, `CombineTaskbar*`/`CombineMMTaskbar*`, `MMTaskbarMode*`,
+  `StartAllApps*`, the taskbar search ones, `Show*DriveLetters*`/`HideDriveLetters`,
+  the alt-tab ones, and `Enable`/`DisableDesktopSpotlight`.
+- `Apps` takes `AppId`s from `Apps.json`; anything else is reported as
+  unsupported and skipped. Listing an app that is not installed does nothing, so
+  a long list costs nothing. Most consumer promo apps (Spotify, TikTok, Disney+,
+  ...) are not really preinstalled: they are Start menu placeholders Windows
+  installs later. What stops that is the `DisableSuggestions` tweak
+  (`SilentInstalledAppsEnabled=0`), not the `Apps` list.
+- The step is idempotent on the config's SHA256 in
+  `HKLM\SOFTWARE\winget-config\Win11Debloat`. Pointing a host at another variant
+  runs Win11Debloat once more with the new config; it does not bring back apps
+  the previous one removed.
 
 ## Language
 

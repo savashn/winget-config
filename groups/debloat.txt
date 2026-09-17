@@ -1,3 +1,3 @@
-parts/tools/win11debloat
+parts/tools/win11debloat/vm
 parts/windows/long-paths
 parts/windows/display-resolution

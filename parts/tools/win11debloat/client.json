@@ -2,8 +2,6 @@
   "Version": "1.0",
   "Apps": [
     "Clipchamp.Clipchamp",
-    "Microsoft.3DBuilder",
-    "Microsoft.549981C3F5F10",
     "Microsoft.BingFinance",
     "Microsoft.BingFoodAndDrink",
     "Microsoft.BingHealthAndFitness",
@@ -14,7 +12,6 @@
     "Microsoft.BingWeather",
     "XP9CXNGPPJ97XX",
     "Microsoft.Windows.AIHub",
-    "Microsoft.PCManager",
     "Microsoft.Getstarted",
     "Microsoft.Messaging",
     "Microsoft.Microsoft3DViewer",
@@ -26,8 +23,6 @@
     "Microsoft.MixedReality.Portal",
     "Microsoft.NetworkSpeedTest",
     "Microsoft.News",
-    "Microsoft.Office.OneNote",
-    "Microsoft.Office.Sway",
     "Microsoft.OneConnect",
     "Microsoft.Print3D",
     "Microsoft.PowerAutomateDesktop",
@@ -41,8 +36,6 @@
     "Microsoft.XboxApp",
     "Microsoft.ZuneVideo",
     "MicrosoftCorporationII.MicrosoftFamily",
-    "MicrosoftCorporationII.QuickAssist",
-    "MicrosoftTeams",
     "ACGMediaPlayer",
     "ActiproSoftwareLLC",
     "AdobeSystemsIncorporated.AdobePhotoshopExpress",
@@ -83,18 +76,11 @@
     "SpotifyAB.SpotifyMusic",
     "BytedancePte.Ltd.TikTok",
     "TuneInRadio",
-    "WinZipUniversal",
-    "Microsoft.Paint",
-    "Microsoft.WindowsCalculator",
-    "Microsoft.OneDrive"
+    "WinZipUniversal"
   ],
   "Tweaks": [
     {
-      "Name": "EnableDarkMode",
-      "Value": true
-    },
-    {
-      "Name": "RevertContextMenu",
+      "Name": "HideDesktopSpotlightIcon",
       "Value": true
     },
     {
@@ -106,6 +92,14 @@
       "Value": true
     },
     {
+      "Name": "DisableLocationServices",
+      "Value": true
+    },
+    {
+      "Name": "DisableFindMyDevice",
+      "Value": true
+    },
+    {
       "Name": "DisableEdgeAds",
       "Value": true
     },
@@ -114,7 +108,7 @@
       "Value": true
     },
     {
-      "Name": "DisableBing",
+      "Name": "DisableSettings365Ads",
       "Value": true
     },
     {
@@ -138,15 +132,15 @@
       "Value": true
     },
     {
-      "Name": "DisableWidgets",
+      "Name": "DisableEdgeAI",
       "Value": true
     },
     {
-      "Name": "HideChat",
+      "Name": "DisablePaintAI",
       "Value": true
     },
     {
-      "Name": "ShowKnownFileExt",
+      "Name": "DisableNotepadAI",
       "Value": true
     },
     {
@@ -154,11 +148,51 @@
       "Value": true
     },
     {
+      "Name": "HideChat",
+      "Value": true
+    },
+    {
       "Name": "Hide3dObjects",
       "Value": true
     },
     {
-      "Name": "DisableModernStandbyNetworking",
+      "Name": "DisableBitlockerAutoEncryiption",
+      "Value": true
+    },
+    {
+      "Name": "ExplorerToThisPC",
+      "Value": true
+    },
+    {
+      "Name": "HideGallery",
+      "Value": true
+    },
+    {
+      "Name": "HideMusic",
+      "Value": true
+    },
+    {
+      "Name": "DisableGameBarIntegration",
+      "Value": true
+    },
+    {
+      "Name": "DisableDVR",
+      "Value": true
+    },
+    {
+      "Name": "DisableUpdateASAP",
+      "Value": true
+    },
+    {
+      "Name": "PreventUpdateAutoReboot",
+      "Value": true
+    },
+    {
+      "Name": "DisableDeliveryOptimization",
+      "Value": true
+    },
+    {
+      "Name": "DisableDeviceAutoAppDownload",
       "Value": true
     }
   ],
