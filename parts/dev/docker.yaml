@@ -1,24 +1,43 @@
 # Docker Desktop uses the WSL2 backend; enabling the Windows features may
 # require a restart.
-- resource: PSDscResources/WindowsOptionalFeature
+# PSDscResources/WindowsOptionalFeature calls the DISM cmdlets, which fail
+# inside winget's DSC host with "Class not registered". The state is read over
+# WMI instead, and dism.exe (its own process) enables the feature.
+- resource: PSDscResources/Script
   id: vmPlatform
   directives:
     description: Virtual Machine Platform (for WSL2)
     allowPrerelease: true
     securityContext: elevated
   settings:
-    Name: VirtualMachinePlatform
-    Ensure: Present
+    GetScript: |
+      $feature = Get-CimInstance Win32_OptionalFeature -Filter "Name='VirtualMachinePlatform'"
+      return @{ Result = $(if ($feature) { "InstallState $($feature.InstallState)" } else { 'not found' }) }
+    TestScript: |
+      # InstallState 1 = enabled (2 = disabled, 3 = absent).
+      return [bool]((Get-CimInstance Win32_OptionalFeature -Filter "Name='VirtualMachinePlatform'").InstallState -eq 1)
+    SetScript: |
+      $output = & (Join-Path $env:SystemRoot 'System32\dism.exe') /Online /Enable-Feature /FeatureName:VirtualMachinePlatform /All /NoRestart 2>&1 | Out-String
+      # 3010: enabled, restart required.
+      if ($LASTEXITCODE -notin 0, 3010) { throw "dism /Enable-Feature VirtualMachinePlatform failed with exit code ${LASTEXITCODE}:`n$output" }
 
-- resource: PSDscResources/WindowsOptionalFeature
+- resource: PSDscResources/Script
   id: wslFeature
   directives:
     description: Windows Subsystem for Linux feature
     allowPrerelease: true
     securityContext: elevated
   settings:
-    Name: Microsoft-Windows-Subsystem-Linux
-    Ensure: Present
+    GetScript: |
+      $feature = Get-CimInstance Win32_OptionalFeature -Filter "Name='Microsoft-Windows-Subsystem-Linux'"
+      return @{ Result = $(if ($feature) { "InstallState $($feature.InstallState)" } else { 'not found' }) }
+    TestScript: |
+      # InstallState 1 = enabled (2 = disabled, 3 = absent).
+      return [bool]((Get-CimInstance Win32_OptionalFeature -Filter "Name='Microsoft-Windows-Subsystem-Linux'").InstallState -eq 1)
+    SetScript: |
+      $output = & (Join-Path $env:SystemRoot 'System32\dism.exe') /Online /Enable-Feature /FeatureName:Microsoft-Windows-Subsystem-Linux /All /NoRestart 2>&1 | Out-String
+      # 3010: enabled, restart required.
+      if ($LASTEXITCODE -notin 0, 3010) { throw "dism /Enable-Feature Microsoft-Windows-Subsystem-Linux failed with exit code ${LASTEXITCODE}:`n$output" }
 
 - resource: Microsoft.WinGet.DSC/WinGetPackage
   id: wsl

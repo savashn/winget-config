@@ -1,22 +1,39 @@
-- resource: Microsoft.Windows.Developer/WindowsCapability
+# Microsoft.Windows.Developer/WindowsCapability calls the DISM cmdlets, which
+# fail inside winget's DSC host with "Class not registered". dism.exe runs in
+# its own process and is not affected; the tests only look for the binaries.
+- resource: PSDscResources/Script
   id: sshClient
   directives:
     description: OpenSSH client
     allowPrerelease: true
     securityContext: elevated
   settings:
-    Name: OpenSSH.Client~~~~0.0.1.0
-    Ensure: Present
+    GetScript: |
+      $exe = Join-Path $env:SystemRoot 'System32\OpenSSH\ssh.exe'
+      return @{ Result = $(if (Test-Path $exe) { 'installed' } else { 'not installed' }) }
+    TestScript: |
+      return [bool](Test-Path (Join-Path $env:SystemRoot 'System32\OpenSSH\ssh.exe'))
+    SetScript: |
+      $output = & (Join-Path $env:SystemRoot 'System32\dism.exe') /Online /Add-Capability /CapabilityName:OpenSSH.Client~~~~0.0.1.0 /NoRestart 2>&1 | Out-String
+      # 3010: installed, restart required.
+      if ($LASTEXITCODE -notin 0, 3010) { throw "dism /Add-Capability OpenSSH.Client failed with exit code ${LASTEXITCODE}:`n$output" }
 
-- resource: Microsoft.Windows.Developer/WindowsCapability
+- resource: PSDscResources/Script
   id: sshServer
   directives:
     description: OpenSSH server
     allowPrerelease: true
     securityContext: elevated
   settings:
-    Name: OpenSSH.Server~~~~0.0.1.0
-    Ensure: Present
+    GetScript: |
+      $exe = Join-Path $env:SystemRoot 'System32\OpenSSH\sshd.exe'
+      return @{ Result = $(if (Test-Path $exe) { 'installed' } else { 'not installed' }) }
+    TestScript: |
+      return [bool](Test-Path (Join-Path $env:SystemRoot 'System32\OpenSSH\sshd.exe'))
+    SetScript: |
+      $output = & (Join-Path $env:SystemRoot 'System32\dism.exe') /Online /Add-Capability /CapabilityName:OpenSSH.Server~~~~0.0.1.0 /NoRestart 2>&1 | Out-String
+      # 3010: installed, restart required.
+      if ($LASTEXITCODE -notin 0, 3010) { throw "dism /Add-Capability OpenSSH.Server failed with exit code ${LASTEXITCODE}:`n$output" }
 
 - resource: PSDscResources/Service
   id: sshdService
