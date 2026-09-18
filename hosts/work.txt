@@ -8,4 +8,5 @@ parts/apps/winrar
 parts/apps/librewolf
 parts/apps/anydesk
 parts/office/microsoft-365
+parts/tools/massgrave.ps1
 parts/office/forticlient-vpn

