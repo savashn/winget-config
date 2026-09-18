@@ -2,6 +2,7 @@ parts/tools/win11debloat/vm
 parts/tools/process-explorer
 parts/tools/bulk-crap-uninstaller
 parts/tools/winfsp
+parts/tools/windows-adk
 parts/windows/long-paths
 parts/windows/display-resolution
 parts/windows/developer-mode

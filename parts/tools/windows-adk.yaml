@@ -1,0 +1,13 @@
+# Windows ADK: provides oscdimg.exe (Deployment Tools), which
+# iso\build-iso.ps1 uses to write the install ISOs. winget runs adksetup.exe
+# with /quiet, which installs the kit's default feature set, not only
+# Deployment Tools.
+- resource: Microsoft.WinGet.DSC/WinGetPackage
+  id: windowsAdk
+  directives:
+    description: Windows ADK
+    allowPrerelease: true
+    securityContext: elevated
+  settings:
+    id: Microsoft.WindowsADK
+    source: winget

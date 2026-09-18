@@ -86,7 +86,8 @@ The command is repeatable; steps that are already installed or already set are s
 Extra requirements:
 
 - The official Windows 11 x64 ISO from [microsoft.com/software-download/windows11](https://www.microsoft.com/software-download/windows11) (browser download only)
-- `oscdimg.exe` from the Windows ADK "Deployment Tools" component- About 45 GB free: `iso\work\` holds one extracted copy plus one copy per host, and each ISO is ~6.5 GB
+- `oscdimg.exe` from the Windows ADK "Deployment Tools" component (the `dev` host installs the ADK through `parts/tools/windows-adk.yaml`)
+- About 45 GB free: `iso\work\` holds one extracted copy plus one copy per host, and each ISO is ~6.5 GB
 
 ```powershell
 .\build.ps1                                                      # make sure out\*.winget is current
