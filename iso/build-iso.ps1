@@ -110,14 +110,14 @@ foreach ($h in $Hosts) {
     $xml = $xmlTemplate.Replace($placeholder, "<Path>$(New-RunOnceLine 'C:\ProvisioningData\provision.ps1')</Path>")
     Set-Content -LiteralPath (Join-Path $build 'autounattend.xml') -Value $xml -Encoding UTF8
 
-    $isoPath  = Join-Path $outDir "Win11-$h.iso"
+    $isoPath  = Join-Path $outDir "win-$h.iso"
     $label    = "WIN11_$($h.ToUpperInvariant())"
     $bootData = "2#p0,e,b$build\boot\etfsboot.com#pEF,e,b$build\efi\microsoft\boot\efisys.bin"
     Remove-Item -LiteralPath $isoPath -Force -ErrorAction SilentlyContinue
-    Write-Host "Building out\Win11-$h.iso ..."
+    Write-Host "Building out\win-$h.iso ..."
     & $OscdimgPath -m -o -u2 -udfver102 "-bootdata:$bootData" "-l$label" $build $isoPath
     if ($LASTEXITCODE -ne 0) { throw "oscdimg failed for $h (exit $LASTEXITCODE)." }
-    Write-Host "OK -> out\Win11-$h.iso" -ForegroundColor Green
+    Write-Host "OK -> out\win-$h.iso" -ForegroundColor Green
 }
 
 Write-Host "`nDone. Delete iso\work to reclaim disk space (the next run extracts the ISO again)." -ForegroundColor Cyan

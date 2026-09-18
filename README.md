@@ -62,7 +62,7 @@ The command is repeatable; steps that are already installed or already set are s
 
 ### Building A Bootable ISO Per Host
 
-`iso\build-iso.ps1` turns the official Windows 11 ISO into one unattended install ISO per host (`out\Win11-<host>.iso`). Booting it installs Windows without asking anything and, on the first logon, applies that host's `.winget` file in the background.
+`iso\build-iso.ps1` turns the official Windows 11 ISO into one unattended install ISO per host (`out\win-<host>.iso`). Booting it installs Windows without asking anything and, on the first logon, applies that host's `.winget` file in the background.
 
 > [!WARNING]
 > The ISO wipes disk 0 without asking. It also creates a local administrator named `User` with **no password**, sets the Turkish (`tr-TR`) locale and the Turkey time zone. Edit `iso\autounattend.template.xml` if that is not what you want.
@@ -99,7 +99,7 @@ qemu-system-x86_64 `
   -m 8G -smp 4 -machine q35 -accel whpx `
   -drive if=pflash,format=raw,readonly=on,file="OVMF_CODE.fd" `
   -drive if=pflash,format=raw,file="OVMF_VARS.fd" `
-  -drive file=out\Win11-office.iso,media=cdrom `
+  -drive file=out\win-office.iso,media=cdrom `
   -drive file=test-disk.qcow2,if=virtio
 ```
 
