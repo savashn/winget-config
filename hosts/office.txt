@@ -1,9 +1,11 @@
-groups/debloat
+parts/tools/win11debloat/vm
+parts/tools/process-explorer
+parts/tools/bulk-crap-uninstaller
+parts/tools/winfsp
+parts/windows/long-paths
+parts/windows/display-resolution
 parts/apps/winrar
 parts/apps/librewolf
-parts/apps/chrome
-parts/apps/firefox
 parts/apps/anydesk
 parts/office/microsoft-365
 parts/office/forticlient-vpn
-parts/tools/winfsp

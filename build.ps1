@@ -2,13 +2,12 @@
 <#
     Generates out\<host>.winget files from the hosts\*.txt lists.
 
-    Each line in a list file names a part (parts/...) or a group (groups/...);
-    blank lines and lines starting with # are skipped. Groups may only contain
-    parts. Comment lines at the top of a host file are copied into the header
-    of the generated file.
+    Each line in a host file names a part (parts/...); blank lines and lines
+    starting with # are skipped. Comment lines at the top of a host file are
+    copied into the header of the generated file.
 
-    Before anything is written these are checked: missing part or group, the
-    same part added twice, duplicate id, dependsOn pointing at an id that is
+    Before anything is written these are checked: missing part, the same part
+    added twice, duplicate id, dependsOn pointing at an id that is
     not in the list. Then the GetScript/TestScript blocks of PSDscResources/
     Script steps are run on this machine under Set-StrictMode -Version Latest,
     the way winget runs them (those scripts only read; some fetch version
@@ -143,18 +142,8 @@ $builds = foreach ($file in $hostFiles) {
     $entries  = [Collections.Generic.List[string]]::new()
 
     foreach ($line in Read-List $file.FullName) {
-        if ($line -like 'groups/*') {
-            $groupFile = Join-Path $root "$line.txt"
-            if (-not (Test-Path -LiteralPath $groupFile)) { $errors.Add("${hostName}: group not found: $line"); continue }
-            foreach ($item in Read-List $groupFile) {
-                if ($item -like 'parts/*') { $entries.Add($item) }
-                else { $errors.Add("${line}: groups may only contain parts/ lines: $item") }
-            }
-        } elseif ($line -like 'parts/*') {
-            $entries.Add($line)
-        } else {
-            $errors.Add("${hostName}: line must start with parts/ or groups/: $line")
-        }
+        if ($line -like 'parts/*') { $entries.Add($line) }
+        else { $errors.Add("${hostName}: line must start with parts/: $line") }
     }
 
     $parts = [Collections.Generic.List[object]]::new()

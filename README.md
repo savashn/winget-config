@@ -19,7 +19,7 @@ WinGet Configuration files for setting up Windows with a single command. Each ma
 
 ### Generating `winget` Files
 
-Whenever a part, group or host file changes:
+Whenever a part or host file changes:
 
 ```powershell
 .\build.ps1                    # every host
@@ -34,7 +34,7 @@ dev               14 parts  29 steps  updated   winget validate: ok
 office            11 parts  11 steps  updated   winget validate: ok
 ```
 
-Before writing anything, `build.ps1` checks for: a missing part or group, the same part added twice, a duplicate `id`, a `dependsOn` on a step the host does not have. It then runs the `GetScript` and `TestScript` blocks of `PSDscResources/Script` steps on this machine under `Set-StrictMode -Version Latest`, the way winget runs them (those scripts only read; some fetch version information over the network), and parses the `SetScript` blocks for syntax errors. Finally it passes every output through `winget configure validate`. Files under `out/` whose host file is gone are deleted.
+Before writing anything, `build.ps1` checks for: a missing part, the same part added twice, a duplicate `id`, a `dependsOn` on a step the host does not have. It then runs the `GetScript` and `TestScript` blocks of `PSDscResources/Script` steps on this machine under `Set-StrictMode -Version Latest`, the way winget runs them (those scripts only read; some fetch version information over the network), and parses the `SetScript` blocks for syntax errors. Finally it passes every output through `winget configure validate`. Files under `out/` whose host file is gone are deleted.
 
 ### Running The Generated `winget` File
 
@@ -120,8 +120,7 @@ With Rufus, pick GPT / UEFI (non CSM) and **leave every box in the "Windows User
 ```
 parts/    Steps. Each .yaml file is one or more winget steps (in today's .winget format, unindented).
           Data files next to them (e.g. win11debloat/vm.json) are embedded into the step at build time.
-groups/   Lists of parts shared by several hosts (client-base, debloat, dev-base).
-hosts/    One list per machine: each line names a parts/... or groups/... entry.
+hosts/    One list per machine: each line names a parts/... entry.
 out/      The .winget files build.ps1 generates (and the ISOs iso\build-iso.ps1 builds). Do not edit by hand.
 build.ps1 Generates and validates out/ files from the hosts/ lists.
 iso/      build-iso.ps1 and the autounattend.xml template for unattended install ISOs. work/ is its scratch space.

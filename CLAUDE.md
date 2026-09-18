@@ -128,9 +128,9 @@ Everything in the repo is English - comments, error messages, console output,
 
 ## Verifying changes
 
-Run `.\build.ps1` after touching any part, group, host file, or embedded data
-file. It checks more than `winget configure validate` does: missing parts and
-groups, a part added twice, duplicate `id`, `dependsOn` on a step the host lacks -
+Run `.\build.ps1` after touching any part, host file, or embedded data file. It
+checks more than `winget configure validate` does: missing parts, a part added
+twice, duplicate `id`, `dependsOn` on a step the host lacks -
 and it actually executes every `GetScript`/`TestScript` under
 `Set-StrictMode -Version Latest`, the way winget will.
 
