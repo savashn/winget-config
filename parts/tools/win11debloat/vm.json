@@ -145,6 +145,10 @@
       "Value": true
     },
     {
+      "Name": "TaskbarAlignLeft",
+      "Value": true
+    },
+    {
       "Name": "DisableDesktopSpotlight",
       "Value": true
     },
