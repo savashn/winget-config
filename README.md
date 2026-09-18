@@ -36,6 +36,22 @@ office            11 parts  11 steps  updated   winget validate: ok
 
 Before writing anything, `build.ps1` checks for: a missing part, the same part added twice, a duplicate `id`, a `dependsOn` on a step the host does not have. It then runs the `GetScript` and `TestScript` blocks of `PSDscResources/Script` steps on this machine under `Set-StrictMode -Version Latest`, the way winget runs them (those scripts only read; some fetch version information over the network), and parses the `SetScript` blocks for syntax errors. Finally it passes every output through `winget configure validate`. Files under `out/` whose host file is gone are deleted.
 
+### Running Your Own Script
+
+A host file can name a `.ps1` or `.cmd` file under `parts/` directly, followed by its arguments:
+
+```
+parts/tools/cleanup.ps1 -Mode Full -Target 'C:\My Data'
+parts/tools/map-drives.cmd Z: "\\nas\share"
+```
+
+`build.ps1` embeds the script into a generated step (id from the file name: `map-drives.cmd` -> `mapDrives`). On the machine the step writes it to `%TEMP%` and runs it elevated in its own process: `.ps1` with Windows PowerShell 5.1, `.cmd` with cmd.exe. A non-zero exit code fails the step, with the script's output in the error. The step runs once per machine, and once more whenever the script or its arguments change.
+
+- The arguments are PowerShell syntax: quote values with spaces, and use single quotes where `$` must stay literal.
+- The script must not wait for input (`Read-Host`, `pause`, `set /p`); nobody is there to answer.
+- End a `.cmd` with an explicit `exit /b`; keep it ASCII.
+- For something that has to be kept in place rather than run once, or that needs `dependsOn`, write a part with its own `TestScript` instead (see `parts/tools/ydk.yaml`).
+
 ### Running The Generated `winget` File
 
 The files under `out\` run on their own; copying just the relevant `.winget` file to the machine is enough.
@@ -120,7 +136,7 @@ With Rufus, pick GPT / UEFI (non CSM) and **leave every box in the "Windows User
 ```
 parts/    Steps. Each .yaml file is one or more winget steps (in today's .winget format, unindented).
           Data files next to them (e.g. win11debloat/vm.json) are embedded into the step at build time.
-hosts/    One list per machine: each line names a parts/... entry.
+hosts/    One list per machine: each line names a parts/... entry, or a parts/....ps1/.cmd script with its arguments.
 out/      The .winget files build.ps1 generates (and the ISOs iso\build-iso.ps1 builds). Do not edit by hand.
 build.ps1 Generates and validates out/ files from the hosts/ lists.
 iso/      build-iso.ps1 and the autounattend.xml template for unattended install ISOs. work/ is its scratch space.

@@ -48,6 +48,33 @@ shared file the variants embed (`apply.ps1`). Name variants by profile, not by
 host, so hosts can share one. Variants keep the same `id`, so the build rejects a
 host that lists two. Data files do not belong in `hosts/`, which only holds lists.
 
+## Script lines in host files
+
+A host line naming a `.ps1` or `.cmd` under `parts/`, optionally followed by
+arguments, is not a part: `New-ScriptPart` in `build.ps1` generates a
+`PSDscResources/Script` step for it. Keep the script in the `parts/` category
+folder it belongs to, like any part.
+
+- The step runs the script once. The recorded value in
+  `HKLM\SOFTWARE\winget-config\Scripts\<id>` is `<SHA256>|<arguments>`, so
+  editing the file or the arguments runs it once more. It never checks the
+  state the script produced; anything that has to stay in place needs a real
+  part with its own `TestScript` (`parts/tools/ydk.yaml`).
+- The arguments are pasted into the `SetScript` as PowerShell syntax, so the
+  build's syntax check catches bad quoting.
+- It runs in its own process, not winget's DSC host: `.ps1` through
+  `powershell.exe -File` (5.1; `param()` and `exit` work, and so do the DISM
+  cmdlets, which fail in-process), `.cmd` through PowerShell's call operator.
+  The exit code decides success.
+- The file is written as UTF-8 with BOM (`.ps1`, because 5.1 reads BOM-less
+  files as ANSI) or ASCII (`.cmd`, because cmd.exe misreads a BOM), both with
+  CRLF (LF-only endings can break `goto`/`call :label`). The build rejects a
+  non-ASCII `.cmd`.
+- The id comes from the file name, so the same script cannot be listed twice
+  on one host; the duplicate-id check catches it.
+- No `dependsOn`, and always `securityContext: elevated`. If a script needs
+  either, write a part instead.
+
 ## Part file conventions
 
 A part file is a fragment of the `.winget` `resources:` list, written at zero
@@ -138,7 +165,8 @@ and it actually executes every `GetScript`/`TestScript` under
 
 A part no host uses is not validated at all. To check one, create a throwaway
 `hosts/_verify.txt` listing it, run `.\build.ps1 _verify`, then delete both the
-host file and `out/_verify.winget`.
+host file and `out/_verify.winget`. The same goes for a script line; the build
+only runs its `GetScript`/`TestScript`, never the script itself.
 
 Never hand-edit `out/`.
 
