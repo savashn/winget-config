@@ -12,6 +12,10 @@ function Write-Log([string] $Message, [ConsoleColor] $Color = 'Cyan') {
     $line | Out-File -FilePath $log -Append -Encoding utf8
 }
 
+function Test-Online {
+    try { [void][Net.Dns]::GetHostAddresses('cdn.winget.microsoft.com'); return $true } catch { return $false }
+}
+
 # Runs winget, showing its output in the window and appending it to the log
 # (progress-bar lines are left out of the log). Returns the exit code; the
 # logged lines are kept in $script:WingetOutput for Write-ApplySummary.
@@ -99,9 +103,23 @@ for ($i = 0; $i -lt 60 -and -not (Get-Command winget -ErrorAction SilentlyContin
 if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { Write-Log 'winget did not appear within 10 minutes; giving up.'; exit 1 }
 [void](Invoke-Winget @('--version'))
 
-# Every step of the configuration downloads something.
-for ($i = 0; $i -lt 60; $i++) {
-    try { [void][Net.Dns]::GetHostAddresses('cdn.winget.microsoft.com'); break } catch { Start-Sleep -Seconds 10 }
+# Every step of the configuration downloads something, and so does the App
+# Installer update that `configure --enable` triggers below. No timeout: going
+# on without a connection only turns one wait into a screen full of failed
+# steps. Waiting is harmless as long as the window says what it is waiting for,
+# so say it, then say it again every minute - an idle window with no output
+# reads as a hang. The poll is short so that plugging in a cable or joining a
+# Wi-Fi network gets things moving again within seconds.
+if (-not (Test-Online)) {
+    Write-Log 'No internet connection.' Red
+    Write-Log 'Connect this computer to a network (cable or Wi-Fi). Setup continues on its own as soon as it is online; nothing else is needed here.' Yellow
+    $waited = 0
+    while (-not (Test-Online)) {
+        Start-Sleep -Seconds 5
+        $waited += 5
+        if ($waited % 60 -eq 0) { Write-Log "Still offline after $($waited / 60) min; waiting for an internet connection." Yellow }
+    }
+    Write-Log 'Internet connection is up; continuing.' Green
 }
 
 $wingetFile = Join-Path $dir "$hostName.winget"
