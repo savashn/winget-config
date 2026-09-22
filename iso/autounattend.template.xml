@@ -72,8 +72,11 @@
               <Format>NTFS</Format>
             </ModifyPartition>
           </ModifyPartitions>
-          <WillShowUI>OnError</WillShowUI>
         </Disk>
+        <!-- WillShowUI belongs to DiskConfiguration, not to Disk. Setup rejects
+             the whole answer file ("component or setting ... does not exist")
+             when it sits inside Disk. -->
+        <WillShowUI>OnError</WillShowUI>
       </DiskConfiguration>
 
       <ImageInstall>
@@ -91,10 +94,10 @@
               <Value>1</Value>
             </MetaData>
           </InstallFrom>
+          <WillShowUI>OnError</WillShowUI>
         </OSImage>
       </ImageInstall>
 
-      <WillShowUI>OnError</WillShowUI>
     </component>
   </settings>
 
