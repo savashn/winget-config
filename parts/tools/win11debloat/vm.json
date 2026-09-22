@@ -249,10 +249,6 @@
       "Value": true
     },
     {
-      "Name": "DisableMouseAcceleration",
-      "Value": true
-    },
-    {
       "Name": "DisableBitlockerAutoEncryiption",
       "Value": true
     },
