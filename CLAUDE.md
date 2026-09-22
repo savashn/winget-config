@@ -182,6 +182,20 @@ standalone rule above. It never builds the `.winget` files itself - run
   RunOnce entry only calls `C:\ProvisioningData\provision.ps1` (written by the
   build into `$OEM$`) instead of carrying an `-EncodedCommand`. Keep logic in that
   script, not on the command line; the build throws if the line gets too long.
+- **Every element in `autounattend.xml` must sit under the parent the unattend
+  schema gives it.** One misplaced element makes Setup reject the whole answer
+  file: "Windows could not parse or process the unattend answer file for pass
+  [windowsPE]. The component or setting specified does not exist." It names the
+  pass, never the element. The same name often exists at several levels and only
+  some of them are real - `WillShowUI` is valid under `DiskConfiguration`,
+  `ImageInstall/OSImage` and `UserData/ProductKey`, but not under
+  `DiskConfiguration/Disk` and not directly under `Microsoft-Windows-Setup`
+  (both were wrong here until a972c28). Check the parent hierarchy on the
+  element's own [Microsoft Learn unattend
+  page](https://learn.microsoft.com/windows-hardware/customize/desktop/unattend/)
+  before adding one; the XML being well-formed proves nothing. `Shift+F10` at
+  the error screen opens a prompt, and `X:\Windows\Panther\setuperr.log` names
+  the setting.
 - That script is `iso/provision.template.ps1`. It runs under Windows PowerShell
   5.1, so keep it 5.1-compatible and ASCII. A fresh Windows image ships an old
   winget with `winget configure` disabled ("Configuration is not enabled").
@@ -207,7 +221,15 @@ standalone rule above. It never builds the `.winget` files itself - run
   password; without it Windows forces a password change at the first logon.
 - `iso/work/` (~25 GB) and the `.iso` files are build output and stay out of git.
 - Changes here can only be verified by installing: build one host and install it
-  in QEMU on a fresh disk.
+  in QEMU on a fresh disk. A QEMU pass is not proof - the `WillShowUI` bug above
+  installed fine in QEMU for months and only failed on real hardware. Before
+  trusting an `autounattend.xml` change, install from a USB stick on a physical
+  machine too.
+- Setup reads `autounattend.xml` from the root of any attached volume, so the
+  one it finds on a USB stick may not be ours. Rufus writes its own file there
+  when anything is ticked in its "Windows User Experience" dialog, and Setup
+  does not merge the two. If a stick behaves differently from the ISO, open
+  `<stick>:\autounattend.xml` and check it is the generated one.
 
 ## Known dead ends
 
