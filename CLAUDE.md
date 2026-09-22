@@ -196,6 +196,13 @@ standalone rule above. It never builds the `.winget` files itself - run
   before adding one; the XML being well-formed proves nothing. `Shift+F10` at
   the error screen opens a prompt, and `X:\Windows\Panther\setuperr.log` names
   the setting.
+- **`UserData/ProductKey` needs a `Key` on Windows 10.** With only
+  `WillShowUI`, Windows 11 Setup goes on but Windows 10 Setup stops with
+  "Windows cannot read the <ProductKey> setting from the unattend answer file".
+  The key is the generic Pro install key, and it has to match the edition the
+  `/IMAGE/INDEX` MetaData picks. That is why `build-iso.ps1` reads the Pro
+  INDEX from the image instead of hard-coding one (Windows 10 consumer ISO: 4;
+  it was 1, i.e. Home, before).
 - That script is `iso/provision.template.ps1`. It runs under Windows PowerShell
   5.1, so keep it 5.1-compatible and ASCII. A fresh Windows image ships an old
   winget with `winget configure` disabled ("Configuration is not enabled").

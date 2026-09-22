@@ -67,11 +67,23 @@ function New-RunOnceLine([string]$ScriptPath) {
 $templatePath = Join-Path $PSScriptRoot 'autounattend.template.xml'
 $placeholder  = '<Path>reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v Provisioning /t REG_SZ /d "{{PROVISIONING_RUNONCE_COMMAND}}" /f</Path>'
 $xmlTemplate  = Get-Content -LiteralPath $templatePath -Raw
-if (-not $xmlTemplate.Contains($placeholder)) { throw "Placeholder line not found in autounattend.template.xml." }
+foreach ($p in $placeholder, '{{PRODUCT_KEY}}', '{{IMAGE_INDEX}}') {
+    if (-not $xmlTemplate.Contains($p)) { throw "Placeholder not found in autounattend.template.xml: $p" }
+}
 $provisionTemplate = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'provision.template.ps1') -Raw
 if (-not $provisionTemplate.Contains('{{HOST}}')) { throw "{{HOST}} not found in provision.template.ps1." }
 
+# The extraction is reused only for the ISO it came from: switching -SourceIso
+# (Windows 10 <-> 11, another build) must not silently reuse the old image.
 $extracted = Join-Path $workDir 'extracted'
+$marker    = Join-Path $workDir 'extracted.source.txt'
+$isoItem   = Get-Item -LiteralPath $SourceIso
+$isoStamp  = "$($isoItem.FullName)|$($isoItem.Length)|$($isoItem.LastWriteTimeUtc.Ticks)"
+if ((Test-Path -LiteralPath $extracted) -and
+    -not ((Test-Path -LiteralPath $marker) -and (Get-Content -LiteralPath $marker -Raw).Trim() -eq $isoStamp)) {
+    Write-Host "iso\work\extracted is from another ISO (or of unknown origin); extracting again."
+    Remove-Item -LiteralPath $extracted -Recurse -Force
+}
 if (-not (Test-Path -LiteralPath $extracted)) {
     Write-Host "Mounting $SourceIso ..."
     $mount = Mount-DiskImage -ImagePath $SourceIso -PassThru
@@ -81,12 +93,40 @@ if (-not (Test-Path -LiteralPath $extracted)) {
         New-Item -ItemType Directory -Force -Path $extracted | Out-Null
         robocopy "${driveLetter}:\" $extracted /MIR /NFL /NDL /NJH /NJS | Out-Null
         if ($LASTEXITCODE -ge 8) { throw "robocopy failed extracting the ISO (exit $LASTEXITCODE)." }
+        Set-Content -LiteralPath $marker -Value $isoStamp
     } finally {
         Dismount-DiskImage -ImagePath $SourceIso | Out-Null
     }
 } else {
     Write-Host "Reusing already-extracted ISO at iso\work\extracted"
 }
+
+# Setup installs Pro. Its INDEX differs between ISOs, so it is looked up in the
+# image's XML metadata (stored uncompressed; its resource header sits at 0x48
+# in the WIM/ESD header), which needs no DISM and no elevation. The key is
+# Microsoft's generic Pro install key: it selects the edition, it does not
+# activate, and it is the same for Windows 10 and 11.
+$edition    = 'Professional'
+$productKey = 'VK7JG-NPHTM-C97JM-9MPGT-3V66T'
+$image = @('install.wim', 'install.esd') | ForEach-Object { Join-Path $extracted "sources\$_" } |
+         Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+if (-not $image) { throw 'No sources\install.wim or install.esd in the extracted ISO.' }
+$stream = [IO.File]::OpenRead($image)
+try {
+    $reader = [IO.BinaryReader]::new($stream)
+    $stream.Position = 0x48
+    $xmlSize = $reader.ReadUInt64() -band 0x00FFFFFFFFFFFFFF
+    $stream.Position = $reader.ReadInt64()
+    $imageXml = [xml][Text.Encoding]::Unicode.GetString($reader.ReadBytes([int]$xmlSize)).TrimStart([char]0xFEFF)
+} finally { $stream.Dispose() }
+$images = @($imageXml.WIM.IMAGE)
+$pro = @($images | Where-Object { $_.WINDOWS.EDITIONID -eq $edition })
+if ($pro.Count -ne 1) {
+    throw "Expected one '$edition' edition in $(Split-Path $image -Leaf), found $($pro.Count). Editions: " +
+          (($images | ForEach-Object { "$($_.INDEX)=$($_.WINDOWS.EDITIONID)" }) -join ', ')
+}
+$imageIndex = $pro[0].INDEX
+Write-Host "Installing $($pro[0].NAME) (INDEX $imageIndex)"
 
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
@@ -108,6 +148,7 @@ foreach ($h in $Hosts) {
     Set-Content -LiteralPath (Join-Path $oemDir 'provision.ps1') -Value $provisionScript -Encoding UTF8
 
     $xml = $xmlTemplate.Replace($placeholder, "<Path>$(New-RunOnceLine 'C:\ProvisioningData\provision.ps1')</Path>")
+    $xml = $xml.Replace('{{PRODUCT_KEY}}', $productKey).Replace('{{IMAGE_INDEX}}', $imageIndex)
     Set-Content -LiteralPath (Join-Path $build 'autounattend.xml') -Value $xml -Encoding UTF8
 
     $isoPath  = Join-Path $outDir "win-$h.iso"

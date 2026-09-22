@@ -95,7 +95,9 @@ Extra requirements:
 .\iso\build-iso.ps1 -SourceIso C:\Users\User\Downloads\Win11.iso -Hosts office
 ```
 
-The source ISO is extracted into `iso\work\extracted` once and reused on later runs. Delete `iso\work\` afterwards to reclaim the space.
+The source ISO is extracted into `iso\work\extracted` once and reused on later runs with the same ISO; passing a different `-SourceIso` extracts again. Delete `iso\work\` afterwards to reclaim the space.
+
+Both Windows 10 and Windows 11 ISOs work. Setup always installs the **Pro** edition: `build-iso.ps1` looks up its `INDEX` in the ISO's `install.wim`/`install.esd` and writes it into `autounattend.xml` together with Microsoft's generic Pro install key, which picks the edition but does not activate Windows. The build fails if the ISO has no Pro edition.
 
 What ends up on the installed machine:
 

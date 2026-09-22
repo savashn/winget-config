@@ -22,8 +22,13 @@
 
       <UserData>
         <AcceptEula>true</AcceptEula>
-        <!-- No product key: the edition is picked by ImageInstall/MetaData below -->
+        <!-- Microsoft's generic (non-activating) install key for the edition
+             build-iso.ps1 installs. It has to match the image picked by
+             ImageInstall/MetaData below. Windows 10 Setup fails with "Windows
+             cannot read the <ProductKey> setting" when Key is missing;
+             Windows 11 Setup tolerated that. -->
         <ProductKey>
+          <Key>{{PRODUCT_KEY}}</Key>
           <WillShowUI>Never</WillShowUI>
         </ProductKey>
       </UserData>
@@ -86,12 +91,11 @@
             <PartitionID>3</PartitionID>
           </InstallTo>
           <InstallFrom>
-            <!-- If the ISO holds several editions (Home/Pro), pick the right INDEX.
-                 Check with: dism /Get-WimInfo /WimFile:D:\sources\install.wim
-                 Single-edition ISOs are usually INDEX 1. -->
+            <!-- Filled in by build-iso.ps1 with the INDEX of the Pro edition in
+                 this ISO's install.wim/.esd; it differs between ISOs. -->
             <MetaData wcm:action="add">
               <Key>/IMAGE/INDEX</Key>
-              <Value>1</Value>
+              <Value>{{IMAGE_INDEX}}</Value>
             </MetaData>
           </InstallFrom>
           <WillShowUI>OnError</WillShowUI>
