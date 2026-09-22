@@ -209,14 +209,21 @@ standalone rule above. It never builds the `.winget` files itself - run
   '...\winget.exe'"). The script therefore polls `winget configure validate`
   until it exits 0 before applying.
 - `winget configure` keeps going when a step fails and then exits
-  `0x8A15C005` (SET_APPLY_FAILED). `Write-ApplySummary` in the script lists the
-  failed steps by parsing winget's English results output (`<Resource> [<id>]`,
-  then an indented status line). If winget changes that format the summary says
-  it found no results instead of guessing; re-check against a throwaway config
+  `0x8A15C005` (SET_APPLY_FAILED). The script follows winget's English results
+  output live (`$onApplyLine`): a `<Resource> [<id>]` line at column 0 marks a
+  unit starting, the next indented line is its status. That drives the
+  `[3/14] Installing AnyDesk` line, the window title and `Write-Summary`; names
+  come from each unit's `description:` in the `.winget` file. If winget changes
+  that format, the steps still run but the window only shows the spinner and
+  the summary says it found no results. Re-check against a throwaway config
   with a `Script` step whose `SetScript` throws.
+- winget runs with its output redirected (`Invoke-Winget`): nothing it prints
+  reaches the window, all of it goes to the log. Keep it that way; the raw
+  output is what the user found unreadable.
 - The script window is visible on purpose: a hidden one made a working run look
-  like it had failed. RunOnce deletes its entry before running, so a failed run
-  is not retried - log enough to diagnose it.
+  like it had failed. The spinner has to keep moving during every wait for the
+  same reason. RunOnce deletes its entry before running, so a failed run is not
+  retried - log enough to diagnose it.
 - An unattended `LocalAccount` needs a `<Password>` element even for an empty
   password; without it Windows forces a password change at the first logon.
 - `iso/work/` (~25 GB) and the `.iso` files are build output and stay out of git.
