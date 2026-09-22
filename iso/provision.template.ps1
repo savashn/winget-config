@@ -51,6 +51,12 @@ function Set-Status([string] $Text) {
     $script:StatusSince = Get-Date
 }
 
+# Changes the text without restarting the clock (a download counting up inside
+# one step).
+function Set-StatusText([string] $Text) {
+    $script:StatusText = $Text
+}
+
 function Clear-Status {
     if (-not $script:StatusShown) { return }
     Write-Host ("`r" + (' ' * (Get-LineWidth)) + "`r") -NoNewline
@@ -93,6 +99,29 @@ function Test-Online {
     try { [void][Net.Dns]::GetHostAddresses('cdn.winget.microsoft.com'); return $true } catch { return $false }
 }
 
+# The App Installer package provides winget through an app execution alias. The
+# alias is in PATH, but PowerShell caches a failed lookup, so also look at the
+# path itself after the package has been installed.
+function Get-WinGetPath {
+    $cmd = @(Get-Command winget.exe -CommandType Application -ErrorAction SilentlyContinue)[0]
+    if ($cmd) { return $cmd.Source }
+    $alias = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\winget.exe'
+    if (Test-Path -LiteralPath $alias) { return $alias }
+    return $null
+}
+
+# The alias file exists even when the package behind it is broken or still
+# being registered, so ask winget itself. An alias whose package is missing can
+# hang instead of failing (Windows opens a Store page for it), hence the
+# timeout: a probe that does not answer counts as "not ready".
+function Test-WinGetReady {
+    $path = Get-WinGetPath
+    if (-not $path) { Write-Log 'winget.exe not found yet.'; return $false }
+    $code = Invoke-Winget @('--version') -TimeoutSeconds 45
+    Write-Log "Probed $path : exit $code"
+    return $code -eq 0
+}
+
 # Strips the VT escape sequences winget uses for colors and progress.
 function Get-PlainText([string] $Line) {
     return ($Line -replace '\x1B\[[0-9;?]*[ -/]*[@-~]', '' -replace '\x1B\][^\x07]*\x07', '').TrimEnd()
@@ -100,13 +129,16 @@ function Get-PlainText([string] $Line) {
 
 # Runs winget without a console of its own, sending its output to the log
 # (progress-bar lines are left out) and to $OnLine, one line at a time. The
-# status line keeps moving meanwhile. Returns the exit code.
-# No timeout: some steps are slow but not stuck.
-function Invoke-Winget([string[]] $Arguments, [scriptblock] $OnLine = $null) {
+# status line keeps moving meanwhile. Returns the exit code, or -2 if
+# $TimeoutSeconds passed and winget had to be killed.
+# Applying the configuration passes no timeout: those steps are slow, not stuck.
+# The readiness probes do, so that a winget that never answers cannot stall the
+# whole run behind a status line that looks like ordinary waiting.
+function Invoke-Winget([string[]] $Arguments, [scriptblock] $OnLine = $null, [int] $TimeoutSeconds = 0) {
     Write-Log "> winget $($Arguments -join ' ')"
-    $exe = @(Get-Command winget.exe -CommandType Application -ErrorAction SilentlyContinue)[0]
+    $exe = Get-WinGetPath
     $psi = New-Object Diagnostics.ProcessStartInfo
-    $psi.FileName = $(if ($exe) { $exe.Source } else { 'winget.exe' })
+    $psi.FileName = $(if ($exe) { $exe } else { 'winget.exe' })
     $psi.Arguments = (@($Arguments | ForEach-Object { if ($_ -match '[\s"]') { '"' + ($_ -replace '"', '\"') + '"' } else { $_ } })) -join ' '
     $psi.UseShellExecute        = $false
     $psi.CreateNoWindow         = $true
@@ -122,6 +154,7 @@ function Invoke-Winget([string[]] $Arguments, [scriptblock] $OnLine = $null) {
     $readers  = @($proc.StandardOutput, $proc.StandardError)
     $pending  = @($readers[0].ReadLineAsync(), $readers[1].ReadLineAsync())
     $lastDraw = [datetime]::MinValue
+    $started  = Get-Date
     $exitedAt = $null
     while ($pending[0] -or $pending[1]) {
         $gotLine = $false
@@ -138,7 +171,13 @@ function Invoke-Winget([string[]] $Arguments, [scriptblock] $OnLine = $null) {
             if ($OnLine) { & $OnLine $line }
         }
         if (((Get-Date) - $lastDraw).TotalMilliseconds -ge 200) { Show-Status; $lastDraw = Get-Date }
-
+        if ($TimeoutSeconds -and -not $proc.HasExited -and ((Get-Date) - $started).TotalSeconds -ge $TimeoutSeconds) {
+            Write-Log "winget $($Arguments -join ' ') did not answer within $TimeoutSeconds s; killing it."
+            # Kill the children too: winget starts a package process of its own.
+            & taskkill.exe /PID $proc.Id /T /F 2>&1 | ForEach-Object { Write-Log $_ }
+            [void]$proc.WaitForExit(5000)
+            return -2
+        }
         if ($gotLine) { continue }
         # A program an installer started can inherit the output pipe and keep
         # it open after winget has exited; do not wait for it.
@@ -150,6 +189,124 @@ function Invoke-Winget([string[]] $Arguments, [scriptblock] $OnLine = $null) {
     }
     $proc.WaitForExit()
     return $proc.ExitCode
+}
+
+# --- installing winget itself ---------------------------------------------------
+# Windows 11 media brings winget along; Windows 10 media ships an App Installer
+# without it (or none at all), and the Store replaces that only much later. So
+# install it here from the winget-cli release on GitHub: the msixbundle plus the
+# dependency pack for this architecture. Each file's Authenticode signature is
+# checked before it is installed - and MSIX deployment refuses a package that is
+# not signed by a trusted publisher anyway.
+
+# Downloads in chunks instead of with Invoke-WebRequest, which would block for
+# minutes with the spinner frozen - the one thing that must never happen, since
+# a still window is how a hung run looks. The status line counts the megabytes.
+function Save-File([string] $Url, [string] $Path, [string] $What) {
+    Write-Log "Downloading $Url"
+    $request = [Net.HttpWebRequest]::Create($Url)
+    $request.UserAgent = 'winget-config-provision'
+    $response = $request.GetResponse()
+    $total = $response.ContentLength
+    $stream = $response.GetResponseStream()
+    $output = [IO.File]::Create($Path)
+    try {
+        $buffer = New-Object byte[] (256 * 1024)
+        $done = 0
+        $lastDraw = [datetime]::MinValue
+        while (($read = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+            $output.Write($buffer, 0, $read)
+            $done += $read
+            if (((Get-Date) - $lastDraw).TotalMilliseconds -lt 200) { continue }
+            $lastDraw = Get-Date
+            $mb = [int]($done / 1MB)
+            Set-StatusText $(if ($total -gt 0) { "$What - $mb of $([int]($total / 1MB)) MB" } else { "$What - $mb MB" })
+            Show-Status
+        }
+    } finally {
+        $output.Dispose()
+        $stream.Dispose()
+        $response.Dispose()
+    }
+    Write-Log "Downloaded $([int]((Get-Item -LiteralPath $Path).Length / 1MB)) MB to $Path"
+}
+
+function Get-SignedFile([string] $Url, [string] $Path, [string] $What) {
+    Save-File $Url $Path $What
+    $sig = Get-AuthenticodeSignature -LiteralPath $Path
+    if ($sig.Status -ne 'Valid') { throw "$(Split-Path $Path -Leaf): signature is $($sig.Status)." }
+    if ($sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
+        throw "$(Split-Path $Path -Leaf) is signed by $($sig.SignerCertificate.Subject), not by Microsoft."
+    }
+    return $Path
+}
+
+function Install-WinGet {
+    # Cheapest case first: the package is on the machine but not registered for
+    # this user.
+    try {
+        Add-AppxPackage -RegisterByFamilyName -MainPackage 'Microsoft.DesktopAppInstaller_8wekyb3d8bbwe' -ErrorAction Stop
+        Write-Log 'Registered the App Installer package that was already on the machine.'
+        if (Test-WinGetReady) { return $true }
+    } catch { Write-Log "No App Installer package to register: $($_.Exception.Message)" }
+
+    $arch = @{ 'AMD64' = 'x64'; 'ARM64' = 'arm64'; 'X86' = 'x86' }[$env:PROCESSOR_ARCHITECTURE]
+    if (-not $arch) { Write-Log "Unknown architecture $env:PROCESSOR_ARCHITECTURE."; return $false }
+    $work = Join-Path $dir 'winget-setup'
+    New-Item -ItemType Directory -Force -Path $work | Out-Null
+
+    try {
+        $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/microsoft/winget-cli/releases/latest' -UseBasicParsing
+        Write-Log "Latest winget release: $($release.tag_name)"
+        $bundleUrl = @($release.assets | Where-Object name -eq 'Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle')[0].browser_download_url
+        $depsUrl   = @($release.assets | Where-Object name -eq 'DesktopAppInstaller_Dependencies.zip')[0].browser_download_url
+    } catch {
+        Write-Log "Could not read the release list from GitHub: $($_.Exception.Message)"
+        $bundleUrl = 'https://aka.ms/getwinget'
+        $depsUrl   = $null
+    }
+    if (-not $bundleUrl) { $bundleUrl = 'https://aka.ms/getwinget' }
+
+    # Dependencies first; winget will not register without them.
+    if ($depsUrl) {
+        try {
+            # The .zip has no Authenticode signature of its own; the .appx files
+            # inside it are signed, and those are what gets installed.
+            $zip = Join-Path $work 'dependencies.zip'
+            Save-File $depsUrl $zip 'Downloading what winget needs'
+            $unzipped = Join-Path $work 'dependencies'
+            if (Test-Path -LiteralPath $unzipped) { Remove-Item -LiteralPath $unzipped -Recurse -Force }
+            Expand-Archive -LiteralPath $zip -DestinationPath $unzipped -Force
+            foreach ($appx in @(Get-ChildItem -LiteralPath (Join-Path $unzipped $arch) -Filter *.appx -ErrorAction SilentlyContinue)) {
+                $sig = Get-AuthenticodeSignature -LiteralPath $appx.FullName
+                if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
+                    Write-Log "Skipping $($appx.Name): signature is $($sig.Status)."
+                    continue
+                }
+                try {
+                    Set-StatusText "Installing what winget needs ($($appx.Name))"
+                    Show-Status
+                    Add-AppxPackage -Path $appx.FullName -ErrorAction Stop
+                    Write-Log "Installed dependency $($appx.Name)."
+                } catch {
+                    # A newer version of the same dependency is already there.
+                    Write-Log "Dependency $($appx.Name): $($_.Exception.Message)"
+                }
+            }
+        } catch { Write-Log "Dependencies failed: $($_.Exception.Message)" }
+    }
+
+    try {
+        $bundle = Get-SignedFile $bundleUrl (Join-Path $work 'AppInstaller.msixbundle') 'Downloading winget'
+        Set-StatusText 'Installing winget'
+        Show-Status
+        Add-AppxPackage -Path $bundle -ErrorAction Stop
+        Write-Log 'Installed the App Installer package.'
+    } catch {
+        Write-Log "Installing App Installer failed: $($_.Exception.Message)"
+        return $false
+    }
+    return $true
 }
 
 # --- configuration steps -------------------------------------------------------
@@ -399,6 +556,11 @@ function Stop-WithError([string] $Message) {
 # --- main ----------------------------------------------------------------------
 
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
+# Windows PowerShell 5.1 on an old Windows 10 image still negotiates TLS 1.0,
+# which github.com and aka.ms refuse. Its download progress bar would also draw
+# over the status line, and it makes Invoke-WebRequest many times slower.
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+$ProgressPreference = 'SilentlyContinue'
 $Host.UI.RawUI.WindowTitle = $title
 Write-Host ''
 Write-Host "  $title" -ForegroundColor Cyan
@@ -419,25 +581,36 @@ if (-not $elevated) {
 }
 try { [Console]::CursorVisible = $false } catch { }
 
-# winget (App Installer) is registered asynchronously after the first logon.
-Set-Status 'Waiting for winget to become available'
-if (-not (Wait-Until { [bool](Get-Command winget -ErrorAction SilentlyContinue) } -PollSeconds 10 -TimeoutSeconds 600)) {
-    Stop-WithError 'winget did not appear within 10 minutes.'
-}
-[void](Invoke-Winget @('--version'))
-Write-Step '  OK  ' 'winget is available'
-
-# Every step of the configuration downloads something, and so does the App
-# Installer update that `configure --enable` triggers below. No timeout: going
-# on without a connection only turns one wait into a screen full of failed
-# steps. The poll is short so that plugging in a cable or joining a Wi-Fi
-# network gets things moving again within seconds.
+# The connection comes first: every step downloads something, winget itself may
+# have to be downloaded below, and without a connection there is nothing to wait
+# for. No timeout: going on offline only turns one wait into a screen full of
+# failed steps. The poll is short so that plugging in a cable or joining a Wi-Fi
+# network gets things moving again within seconds - and it must say so, because
+# only the user can fix it.
+Set-Status 'Checking the internet connection'
 if (-not (Test-Online)) {
+    Write-Step ' WAIT ' 'No internet connection' 'connect a cable or Wi-Fi' Yellow
     Write-Log 'No internet connection; waiting for one.'
-    Set-Status 'No internet connection. Connect a cable or Wi-Fi; setup continues on its own'
+    Set-Status 'Waiting for an internet connection - setup continues on its own once it is there'
     [void](Wait-Until { Test-Online } -PollSeconds 5)
 }
 Write-Step '  OK  ' 'Internet connection'
+
+# On Windows 11 winget is on the machine already, only registered a little after
+# the first logon. On Windows 10 it usually is not there at all, and no amount
+# of waiting brings it, so install it.
+Set-Status 'Waiting for winget - if it does not turn up, it gets installed'
+$ready = Wait-Until { Test-WinGetReady } -PollSeconds 10 -TimeoutSeconds 120
+if (-not $ready) {
+    Write-Step ' WAIT ' 'winget is not on this machine' 'installing it' Yellow
+    Set-Status 'Downloading and installing winget (App Installer)'
+    $installed = Install-WinGet
+    Write-Log "Install-WinGet returned $installed"
+    $ready = Wait-Until { Test-WinGetReady } -PollSeconds 5 -TimeoutSeconds 120
+}
+if (-not $ready) { Stop-WithError 'winget could not be installed on this machine.' }
+Write-Step '  OK  ' 'winget is available'
+
 # A fresh Windows ships with `winget configure` disabled. `--enable` updates App
 # Installer through the Store: this early it can sit at 95% for a while, but it
 # does finish. It must be the only argument; winget rejects it next to anything

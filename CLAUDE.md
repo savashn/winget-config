@@ -203,8 +203,33 @@ standalone rule above. It never builds the `.winget` files itself - run
   `/IMAGE/INDEX` MetaData picks. That is why `build-iso.ps1` reads the Pro
   INDEX from the image instead of hard-coding one (Windows 10 consumer ISO: 4;
   it was 1, i.e. Home, before).
+- **The connection is checked before winget, and the window has to say which
+  one it is waiting for.** Only the user can plug in a cable, so an unexplained
+  wait is a dead end: that is how "waiting for winget" hid a missing network
+  for ten minutes and then failed.
+- **Windows 10 media has no winget.** Windows 11 only registers App Installer a
+  little after the first logon (waiting is enough); on Windows 10 waiting never
+  ends, so `Install-WinGet` installs it: the `.msixbundle` plus
+  `DesktopAppInstaller_Dependencies.zip` for this architecture, from the latest
+  `microsoft/winget-cli` release (`aka.ms/getwinget` is the fallback for the
+  bundle). Every `.appx`/`.msixbundle` is checked with
+  `Get-AuthenticodeSignature` before it is installed - which works on those, but
+  **not on the dependency `.zip`** (`UnknownError`), so that one is verified
+  through the packages inside it.
+- **Anything that can hang in front of the status line needs a bound or a
+  counter.** An app execution alias whose package is gone does not fail, it
+  hangs, so the readiness probes pass `-TimeoutSeconds` to `Invoke-Winget`
+  (which then kills the process tree and returns -2) while applying the
+  configuration still passes none. Downloads use `Save-File`, which reads in
+  chunks and counts the megabytes on the status line, because
+  `Invoke-WebRequest` would block with the spinner frozen - a still window is
+  exactly what a hung run looks like.
 - That script is `iso/provision.template.ps1`. It runs under Windows PowerShell
-  5.1, so keep it 5.1-compatible and ASCII. A fresh Windows image ships an old
+  5.1, so keep it 5.1-compatible and ASCII. It needs
+  `[Net.ServicePointManager]::SecurityProtocol` set to TLS 1.2 (an old Windows
+  10 image still offers TLS 1.0, which github.com refuses) and
+  `$ProgressPreference = 'SilentlyContinue'` (the download progress bar draws
+  over the status line and slows `Invoke-WebRequest` down a lot). A fresh Windows image ships an old
   winget with `winget configure` disabled ("Configuration is not enabled").
   The script runs `winget configure --enable` first. It must be the only
   argument (winget rejects it next to anything else, even

@@ -104,8 +104,10 @@ What ends up on the installed machine:
 | Path | What it is |
 |---|---|
 | `C:\ProvisioningData\<host>.winget` | The host's config, copied from `out\` |
-| `C:\ProvisioningData\provision.ps1` | Started once by a `RunOnce` entry at the first logon (from `iso\provision.template.ps1`); waits for winget and the network, runs `winget configure --enable`, applies the `.winget` file, then puts desktop shortcuts for what it installed |
+| `C:\ProvisioningData\provision.ps1` | Started once by a `RunOnce` entry at the first logon (from `iso\provision.template.ps1`); waits for the network, makes sure winget is there, runs `winget configure --enable`, applies the `.winget` file, then puts desktop shortcuts for what it installed |
 | `C:\ProvisioningData\<host>.log` | Everything winget printed during that run, plus the step results |
+
+The script waits for an internet connection before anything else and says so in the window; it goes on by itself a few seconds after the machine is online. Then it checks winget: Windows 11 registers it shortly after the first logon, and on Windows 10, which has no winget at all, the script downloads and installs App Installer (about 200 MB) from the `microsoft/winget-cli` release, signature checked.
 
 Setup and the first logon need no input. After the desktop appears, a PowerShell window titled "Setting up this computer" shows the progress: one line per finished step (`[  OK  ]` or `[ FAIL ]`), and under it the step in progress with a spinner and its running time, for example `[ / ] [3/14] Installing AnyDesk (01:12)`. The window title shows the same counter. It can take a long time; as long as the spinner moves, it is working. At the end it prints a `SETUP COMPLETE` or `SETUP FINISHED WITH ERRORS` banner, beeps, and waits for Enter. winget's own output goes only to the log. If the `Provisioning` value is still under `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce`, the script never started.
 
