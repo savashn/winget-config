@@ -224,6 +224,10 @@ standalone rule above. It never builds the `.winget` files itself - run
   like it had failed. The spinner has to keep moving during every wait for the
   same reason. RunOnce deletes its entry before running, so a failed run is not
   retried - log enough to diagnose it.
+- Desktop shortcuts (`New-DesktopShortcuts`) come from a Start menu snapshot
+  taken just before applying. So anything else that lands in the Start menu
+  during the run also gets one, for example an app the Store installs in the
+  background on a host without Win11Debloat.
 - An unattended `LocalAccount` needs a `<Password>` element even for an empty
   password; without it Windows forces a password change at the first logon.
 - `iso/work/` (~25 GB) and the `.iso` files are build output and stay out of git.

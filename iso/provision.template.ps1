@@ -226,9 +226,126 @@ $onApplyLine = {
     elseif ($Line -notmatch '^Some of the configuration was not applied') { $script:Current.Details.Add($Line.Trim()) }
 }
 
+# --- desktop shortcuts ---------------------------------------------------------
+# Silent installs rarely put a shortcut on the desktop. Whatever appears in the
+# Start menu while the configuration runs gets one: a copy of its Start menu
+# shortcut, or, for Store/MSIX apps (which have no .lnk file), a shortcut to its
+# shell:AppsFolder entry. Portable winget packages get no Start menu entry, only
+# a link in winget's Links folder; those get a shortcut if the program is a GUI
+# (not a console) executable. Skipped: anything already on a desktop (many
+# installers put their own on the public desktop), uninstall/help/readme/website
+# entries and vendor "...Tools" folders (Microsoft Office Tools).
+
+$startMenus  = @((Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs'),
+                 (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'))
+$wingetLinks = @((Join-Path $env:ProgramFiles 'WinGet\Links'),
+                 (Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Links'))
+$skipName    = "(?i)(^|\W)(uninstall|readme|read me|help|manual|documentation|release notes|license|licence|website|web site|homepage|faq|changelog|what's new)(\W|$)"
+$skipTarget  = '(?i)(\.(txt|pdf|chm|hlp|htm|html|url|rtf|md|log|ini|xml)$|\\unins[^\\]*\.exe$)'
+
+function Get-StartMenuState {
+    [pscustomobject]@{
+        Lnk   = @($startMenus | Where-Object { Test-Path -LiteralPath $_ } |
+                  ForEach-Object { Get-ChildItem -LiteralPath $_ -Filter *.lnk -Recurse -ErrorAction SilentlyContinue } |
+                  ForEach-Object FullName)
+        Apps  = @(try { Get-StartApps | Where-Object { $_.AppID -like '*!*' } } catch { })
+        Links = @($wingetLinks | Where-Object { Test-Path -LiteralPath $_ } |
+                  ForEach-Object { Get-ChildItem -LiteralPath $_ -Filter *.exe -ErrorAction SilentlyContinue } |
+                  ForEach-Object FullName)
+    }
+}
+
+# True for a PE file whose subsystem is Windows GUI (2), false for console ones.
+function Test-GuiExe([string] $Path) {
+    try {
+        $fs = [IO.File]::OpenRead($Path)
+        try {
+            $br = New-Object IO.BinaryReader $fs
+            $fs.Position = 0x3C
+            $pe = $br.ReadInt32()
+            $fs.Position = $pe
+            if ($br.ReadUInt32() -ne 0x4550) { return $false }
+            $fs.Position = $pe + 24 + 68
+            return $br.ReadUInt16() -eq 2
+        } finally { $fs.Dispose() }
+    } catch { return $false }
+}
+
+# Returns the names of the shortcuts it created.
+function New-DesktopShortcuts($Before) {
+    $after   = Get-StartMenuState
+    $desktop = [Environment]::GetFolderPath('Desktop')
+    $shell   = New-Object -ComObject WScript.Shell
+    $created = [Collections.Generic.List[string]]::new()
+    $names   = @{}
+    $targets = @{}
+
+    function Get-TargetKey([string] $LnkPath) {
+        try { $l = $shell.CreateShortcut($LnkPath) } catch { return $null }
+        if (-not $l.TargetPath) { return $null }
+        return "$($l.TargetPath)|$($l.Arguments)".ToLowerInvariant()
+    }
+    function Add-Shortcut([string] $Name, [string] $Key, [scriptblock] $Create) {
+        $Name = ($Name -replace '[\\/:*?"<>|]', '').Trim()
+        if (-not $Name -or $names.ContainsKey($Name) -or ($Key -and $targets.ContainsKey($Key))) { return }
+        $file = Join-Path $desktop "$Name.lnk"
+        try {
+            & $Create $file
+            $names[$Name] = $true
+            if ($Key) { $targets[$Key] = $true }
+            $created.Add($Name)
+        } catch { Write-Log "Could not create desktop shortcut '$Name': $_" }
+    }
+
+    foreach ($f in @(Get-ChildItem -LiteralPath $desktop, ([Environment]::GetFolderPath('CommonDesktopDirectory')) -Filter *.lnk -ErrorAction SilentlyContinue)) {
+        $names[$f.BaseName] = $true
+        $key = Get-TargetKey $f.FullName
+        if ($key) { $targets[$key] = $true }
+    }
+
+    foreach ($p in @($after.Lnk | Where-Object { $_ -notin $Before.Lnk } | Sort-Object)) {
+        $name = [IO.Path]::GetFileNameWithoutExtension($p)
+        if ($name -match $skipName -or (Split-Path (Split-Path $p -Parent) -Leaf) -match 'Tools$') { continue }
+        $l = $shell.CreateShortcut($p)
+        if ($l.TargetPath -match $skipTarget) { continue }
+        Add-Shortcut $name (Get-TargetKey $p) { param($file) Copy-Item -LiteralPath $p -Destination $file }
+    }
+
+    $knownApps = @($Before.Apps | ForEach-Object AppID)
+    foreach ($a in @($after.Apps | Where-Object { $_.AppID -notin $knownApps })) {
+        if ($a.Name -match $skipName) { continue }
+        $target = "shell:AppsFolder\$($a.AppID)"
+        Add-Shortcut $a.Name $target.ToLowerInvariant() {
+            param($file)
+            $s = $shell.CreateShortcut($file)
+            $s.TargetPath = $target
+            $s.Save()
+        }
+    }
+
+    foreach ($p in @($after.Links | Where-Object { $_ -notin $Before.Links } | Sort-Object)) {
+        $target = $p
+        try {
+            $t = @((Get-Item -LiteralPath $p).Target)[0]
+            if ($t) { $target = $(if ([IO.Path]::IsPathRooted($t)) { $t } else { Join-Path (Split-Path $p -Parent) $t }) }
+        } catch { }
+        if (-not (Test-GuiExe $target)) { continue }
+        $name = (Get-Item -LiteralPath $target).VersionInfo.FileDescription
+        if (-not $name -or -not $name.Trim()) { $name = [IO.Path]::GetFileNameWithoutExtension($p) }
+        Add-Shortcut $name "$target|".ToLowerInvariant() {
+            param($file)
+            $s = $shell.CreateShortcut($file)
+            $s.TargetPath = $target
+            $s.WorkingDirectory = Split-Path $target -Parent
+            $s.Save()
+        }
+    }
+    return $created
+}
+
 # --- summary -------------------------------------------------------------------
 
-function Write-Summary([int] $ExitCode) {
+function Write-Summary([int] $ExitCode, [string[]] $Shortcuts) {
     $failed = @($script:Results | Where-Object { -not $_.Ok })
     $ok     = $script:Results.Count - $failed.Count
     Clear-Status
@@ -253,6 +370,7 @@ function Write-Summary([int] $ExitCode) {
         $lines += 'Fix the cause and run again (steps already done are skipped):'
         $lines += "  winget configure -f $wingetFile --accept-configuration-agreements"
     }
+    if ($Shortcuts) { $lines += "Desktop shortcuts created: $($Shortcuts -join ', ')" }
     $lines += "Full log: $log"
 
     $rule = '=' * [Math]::Min(70, (Get-LineWidth) - 2)
@@ -345,12 +463,18 @@ $units = Read-Units
 Write-Log "$($units.Count) steps in $wingetFile"
 Write-Host ''
 Write-Host "  Applying $($units.Count) steps:" -ForegroundColor Cyan
+$startMenuBefore = Get-StartMenuState
 Set-Status 'Preparing (downloading what the steps need)'
 $code = Invoke-Winget @('configure', '-f', $wingetFile, '--accept-configuration-agreements', '--disable-interactivity') $onApplyLine
 if ($script:Current -and -not $script:Current.Status) { Complete-Unit 'No result was reported for this step.' }
 Write-Log "winget configure finished (exit $code)."
 
-Write-Summary $code
+Set-Status 'Creating desktop shortcuts'
+Show-Status
+$shortcuts = @(New-DesktopShortcuts $startMenuBefore)
+Write-Log "Desktop shortcuts created: $($shortcuts -join ', ')"
+
+Write-Summary $code $shortcuts
 try { [Console]::Beep(880, 250); [Console]::Beep(1175, 350) } catch { }
 try { [Console]::CursorVisible = $true } catch { }
 Read-Host "`n  Press Enter to close this window"
