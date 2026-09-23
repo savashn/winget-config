@@ -192,6 +192,19 @@
       publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"
       xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
 
+      <!-- Signs "User" in by itself, so provision.ps1 goes on after the restarts
+           Windows Update needs. LogonCount covers its $maxStarts starts;
+           provision.ps1 turns automatic logon off when it is done. -->
+      <AutoLogon>
+        <Enabled>true</Enabled>
+        <LogonCount>10</LogonCount>
+        <Username>User</Username>
+        <Password>
+          <Value></Value>
+          <PlainText>true</PlainText>
+        </Password>
+      </AutoLogon>
+
       <OOBE>
         <HideEULAPage>true</HideEULAPage>
         <HideOEMRegistrationScreen>true</HideOEMRegistrationScreen>

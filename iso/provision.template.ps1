@@ -1,6 +1,7 @@
 # Copied by build-iso.ps1 to C:\ProvisioningData\provision.ps1 on the install
-# media, with the host name filled in. A RunOnce entry starts it once, at the first
-# logon of "User". Runs under Windows PowerShell 5.1.
+# media, with the host name filled in. A RunOnce entry starts it at the first
+# logon of "User"; after a restart a scheduled task starts it again (see
+# Register-Resume). Runs under Windows PowerShell 5.1.
 #
 # The window shows one line per finished step and, below it, an animated line
 # for the step in progress ("[3/14] Installing AnyDesk"). Everything winget
@@ -500,6 +501,180 @@ function New-DesktopShortcuts($Before) {
     return $created
 }
 
+# --- resuming after a restart ----------------------------------------------------
+# RunOnce starts this script only once, but Windows Update needs restarts, and a
+# crash restarts the machine too. So for as long as a run lasts, a scheduled
+# task starts the script again at every logon of this user: elevated (no UAC
+# prompt) and in a visible window. autounattend.xml turns on automatic logon so
+# that nobody has to sign in after those restarts. Complete-Run removes both.
+# Starting over is safe: Windows Update finds only what is still missing, and
+# winget skips the steps that are done.
+
+$resumeTask        = 'winget-config provisioning'
+$stateKey          = 'HKLM:\SOFTWARE\winget-config\Provisioning'
+$maxStarts         = 10   # a machine that keeps crashing must not loop forever
+$maxUpdateRestarts = 5
+
+function Get-State([string] $Name) {
+    try { return [int](Get-ItemPropertyValue -LiteralPath $stateKey -Name $Name -ErrorAction Stop) } catch { return 0 }
+}
+
+function Set-State([string] $Name, [int] $Value) {
+    if (-not (Test-Path -LiteralPath $stateKey)) { New-Item -Path $stateKey -Force | Out-Null }
+    New-ItemProperty -LiteralPath $stateKey -Name $Name -Value $Value -PropertyType DWord -Force | Out-Null
+}
+
+function Register-Resume {
+    $user      = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $action    = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
+    $trigger   = New-ScheduledTaskTrigger -AtLogOn -User $user
+    $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Highest
+    $settings  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero)
+    Register-ScheduledTask -TaskName $resumeTask -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
+}
+
+# The run is over, successful or not: no more starts at logon, no more
+# automatic logon.
+function Complete-Run {
+    try { Unregister-ScheduledTask -TaskName $resumeTask -Confirm:$false -ErrorAction Stop; Write-Log 'Removed the resume task.' }
+    catch { Write-Log "Could not remove the resume task: $($_.Exception.Message)" }
+    Remove-Item -LiteralPath $stateKey -Recurse -Force -ErrorAction SilentlyContinue
+    $winlogon = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+    Set-ItemProperty -LiteralPath $winlogon -Name AutoAdminLogon -Value '0' -ErrorAction SilentlyContinue
+    foreach ($name in 'AutoLogonCount', 'DefaultPassword') {
+        Remove-ItemProperty -LiteralPath $winlogon -Name $name -ErrorAction SilentlyContinue
+    }
+}
+
+# --- Windows Update --------------------------------------------------------------
+# Runs before winget: on a fresh install Windows Update otherwise installs its
+# cumulative update in the background at the same time, and MSI-based packages
+# then fail with 1618 ("another installation is in progress") or ask for a
+# restart. winget cannot install Windows updates, so this talks to the Windows
+# Update Agent directly.
+#
+# One pass searches, downloads and installs one update at a time, in a
+# background runspace: every WUA call blocks, some for many minutes, and on this
+# thread they would freeze the spinner. $State carries the status text, the log
+# lines and the outcome back. Only what the Settings page would install on its
+# own (BrowseOnly=0) is taken; optional updates and most drivers stay out.
+$updatePass = {
+    param($State)
+    function Log([string] $Message) { $State.Log.Enqueue($Message) }
+    try {
+        $session = New-Object -ComObject Microsoft.Update.Session
+        $session.ClientApplicationID = 'winget-config provisioning'
+        $found = $session.CreateUpdateSearcher().Search('IsInstalled=0 and IsHidden=0 and BrowseOnly=0')
+        Log "Windows Update search: result $($found.ResultCode), $($found.Updates.Count) update(s)."
+        $updates = @()
+        foreach ($u in $found.Updates) {
+            if ($u.InstallationBehavior.CanRequestUserInput) { Log "Skipped (needs user input): $($u.Title)"; continue }
+            Log "Found: $($u.Title)"
+            $updates += $u
+        }
+        $State.Found = $updates.Count
+
+        $downloaded = @()
+        $i = 0
+        foreach ($u in $updates) {
+            $i++
+            if (-not $u.EulaAccepted) { $u.AcceptEula() }
+            if (-not $u.IsDownloaded) {
+                $State.Text = "Downloading Windows updates ($i of $($updates.Count)): $($u.Title)"
+                $one = New-Object -ComObject Microsoft.Update.UpdateColl
+                [void]$one.Add($u)
+                $downloader = $session.CreateUpdateDownloader()
+                $downloader.Updates = $one
+                try { Log "Downloaded $($u.Title): result $($downloader.Download().ResultCode)" }
+                catch { Log "Download of $($u.Title) failed: $($_.Exception.Message)" }
+            }
+            if ($u.IsDownloaded) { $downloaded += $u } else { [void]$State.Failed.Add($u.Title) }
+        }
+
+        $i = 0
+        foreach ($u in $downloaded) {
+            $i++
+            $installer = $session.CreateUpdateInstaller()
+            # Windows' own automatic update may be installing something already.
+            $deadline = (Get-Date).AddMinutes(30)
+            while ($installer.IsBusy -and (Get-Date) -lt $deadline) {
+                $State.Text = 'Waiting for Windows to finish installing another update'
+                Start-Sleep -Seconds 5
+            }
+            $State.Text = "Installing Windows updates ($i of $($downloaded.Count)): $($u.Title)"
+            $one = New-Object -ComObject Microsoft.Update.UpdateColl
+            [void]$one.Add($u)
+            $installer.Updates = $one
+            try {
+                $r = $installer.Install()
+                Log ("Installed {0}: result {1}, HRESULT 0x{2:X8}, restart needed: {3}" -f $u.Title, $r.ResultCode, $r.HResult, $r.RebootRequired)
+                # 2 = succeeded, 3 = succeeded with errors
+                if ($r.ResultCode -in 2, 3) { $State.Installed++ } else { [void]$State.Failed.Add($u.Title) }
+                if ($r.RebootRequired) { $State.RebootRequired = $true }
+            } catch {
+                Log "Install of $($u.Title) failed: $($_.Exception.Message)"
+                [void]$State.Failed.Add($u.Title)
+            }
+        }
+        if ((New-Object -ComObject Microsoft.Update.SystemInfo).RebootRequired) { $State.RebootRequired = $true }
+    } catch {
+        $State.Error = $_.Exception.Message
+    }
+}
+
+function Receive-UpdateLog($State) {
+    $line = $null
+    while ($State.Log.TryDequeue([ref] $line)) { Write-Log $line }
+}
+
+function Invoke-UpdatePass {
+    $state = [hashtable]::Synchronized(@{
+        Text = 'Looking for Windows updates'; Log = New-Object 'Collections.Concurrent.ConcurrentQueue[string]'
+        Found = 0; Installed = 0; Failed = [Collections.ArrayList]::Synchronized((New-Object Collections.ArrayList))
+        RebootRequired = $false; Error = $null
+    })
+    $ps = [PowerShell]::Create()
+    # As text: a script block belongs to the runspace that created it.
+    [void]$ps.AddScript($updatePass.ToString()).AddArgument($state)
+    $handle = $ps.BeginInvoke()
+    [void](Wait-Until { Receive-UpdateLog $state; Set-StatusText $state.Text; $handle.IsCompleted } -PollSeconds 1)
+    try { [void]$ps.EndInvoke($handle) } catch { if (-not $state.Error) { $state.Error = $_.Exception.Message } }
+    foreach ($e in $ps.Streams.Error) { Write-Log "Windows Update: $e" }
+    $ps.Dispose()
+    Receive-UpdateLog $state
+    return $state
+}
+
+function Restart-ForUpdates {
+    Set-State UpdateRestarts ((Get-State UpdateRestarts) + 1)
+    Write-Step ' WAIT ' 'Restarting to finish the Windows updates' 'setup continues on its own after the restart' Yellow
+    Set-Status 'Restarting the computer'
+    Wait-Seconds 15
+    Clear-Status
+    Restart-Computer -Force
+    exit
+}
+
+# Passes until nothing is left or a restart is needed. A failure here does not
+# stop the setup; the apps matter more than the updates.
+function Update-Windows([bool] $CanResume) {
+    for ($pass = 1; $pass -le 3; $pass++) {
+        Set-Status 'Looking for Windows updates'
+        $r = Invoke-UpdatePass
+        if ($r.Error) { Write-Step ' WARN ' 'Windows Update did not work' $r.Error Yellow; return }
+        if ($r.Found -eq 0 -and -not $r.RebootRequired) { Write-Step '  OK  ' 'Windows is up to date'; return }
+        if ($r.Installed) { Write-Step '  OK  ' "Installed $($r.Installed) Windows update(s)" (Format-Elapsed $script:StatusSince) }
+        foreach ($t in $r.Failed) { Write-Step ' WARN ' "Windows update failed: $t" '' Yellow }
+        if ($r.RebootRequired) {
+            $restarts = Get-State UpdateRestarts
+            if (-not $CanResume) { Write-Step ' WARN ' 'Windows needs a restart for its updates' 'restart it after the setup' Yellow; return }
+            if ($restarts -ge $maxUpdateRestarts) { Write-Step ' WARN ' "Windows still needs a restart after $restarts restarts" 'going on without one' Yellow; return }
+            Restart-ForUpdates
+        }
+        if (-not $r.Installed) { return }
+    }
+}
+
 # --- summary -------------------------------------------------------------------
 
 function Write-Summary([int] $ExitCode, [string[]] $Shortcuts) {
@@ -548,6 +723,7 @@ function Write-Summary([int] $ExitCode, [string[]] $Shortcuts) {
 function Stop-WithError([string] $Message) {
     Write-Step ' FAIL ' $Message '' Red
     $Host.UI.RawUI.WindowTitle = "SETUP FAILED - $title"
+    Complete-Run
     try { [Console]::CursorVisible = $true } catch { }
     Read-Host "`n  SETUP FAILED. Details are in $log.`n  Press Enter to close this window"
     exit 1
@@ -573,6 +749,7 @@ Write-Log "provision.ps1 started as $(whoami), elevated=$elevated"
 
 # RunOnce is deleted before it runs, so there is no second chance: if this
 # instance is not elevated, relaunch elevated (one UAC prompt) and stop here.
+# The resume task starts it elevated already.
 if (-not $elevated) {
     Write-Host '  Asking for administrator rights; setup continues in a new window.' -ForegroundColor Yellow
     Write-Log 'Relaunching elevated.'
@@ -580,6 +757,17 @@ if (-not $elevated) {
     exit
 }
 try { [Console]::CursorVisible = $false } catch { }
+
+$starts = (Get-State Starts) + 1
+Set-State Starts $starts
+if ($starts -gt 1) {
+    Write-Log "Start $starts of at most $maxStarts."
+    Write-Step '  OK  ' 'Continuing after a restart'
+}
+if ($starts -gt $maxStarts) { Stop-WithError "Setup was started $maxStarts times without finishing; it stops here." }
+$canResume = $true
+try { Register-Resume; Write-Log 'Registered the resume task.' }
+catch { $canResume = $false; Write-Log "Could not register the resume task: $($_.Exception.Message)" }
 
 # The connection comes first: every step downloads something, winget itself may
 # have to be downloaded below, and without a connection there is nothing to wait
@@ -595,6 +783,8 @@ if (-not (Test-Online)) {
     [void](Wait-Until { Test-Online } -PollSeconds 5)
 }
 Write-Step '  OK  ' 'Internet connection'
+
+Update-Windows $canResume
 
 # On Windows 11 winget is on the machine already, only registered a little after
 # the first logon. On Windows 10 it usually is not there at all, and no amount
@@ -646,6 +836,8 @@ Set-Status 'Creating desktop shortcuts'
 Show-Status
 $shortcuts = @(New-DesktopShortcuts $startMenuBefore)
 Write-Log "Desktop shortcuts created: $($shortcuts -join ', ')"
+
+Complete-Run
 
 Write-Summary $code $shortcuts
 try { [Console]::Beep(880, 250); [Console]::Beep(1175, 350) } catch { }

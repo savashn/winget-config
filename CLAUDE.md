@@ -207,6 +207,21 @@ standalone rule above. It never builds the `.winget` files itself - run
   one it is waiting for.** Only the user can plug in a cable, so an unexplained
   wait is a dead end: that is how "waiting for winget" hid a missing network
   for ten minutes and then failed.
+- **Windows updates come before winget, and they restart the machine.** winget
+  cannot install them, so `Update-Windows` uses the Windows Update Agent COM
+  API (`Microsoft.Update.Session`), which is built into Windows; PSWindowsUpdate
+  would have to be fetched from PSGallery. Every WUA call blocks, so the pass
+  runs in a background runspace (`$updatePass`, started from its text because a
+  script block belongs to the runspace that created it). It downloads and
+  installs one update at a time, which is what the status line counts. Only
+  `BrowseOnly=0` updates are taken. A failure is logged and the run goes on.
+  RunOnce fires once, so `Register-Resume` adds a scheduled task (at logon,
+  `RunLevel Highest`: no UAC prompt, visible window) for the length of the run,
+  and `AutoLogon` in `autounattend.xml` (`LogonCount` 10) signs in after each
+  restart. `Complete-Run` removes both at the end and in `Stop-WithError`.
+  Bounds: at most 5 restarts for updates, and at most `$maxStarts` (10) starts
+  in all, counted in `HKLM\SOFTWARE\winget-config\Provisioning`, because a
+  machine that keeps crashing must not loop forever.
 - **Windows 10 media has no winget.** Windows 11 only registers App Installer a
   little after the first logon (waiting is enough); on Windows 10 waiting never
   ends, so `Install-WinGet` installs it: the `.msixbundle` plus
@@ -254,8 +269,8 @@ standalone rule above. It never builds the `.winget` files itself - run
   output is what the user found unreadable.
 - The script window is visible on purpose: a hidden one made a working run look
   like it had failed. The spinner has to keep moving during every wait for the
-  same reason. RunOnce deletes its entry before running, so a failed run is not
-  retried - log enough to diagnose it.
+  same reason. A run that ends in `Stop-WithError` or the summary is not
+  retried (`Complete-Run` removes the resume task) - log enough to diagnose it.
 - Desktop shortcuts (`New-DesktopShortcuts`) come from a Start menu snapshot
   taken just before applying. So anything else that lands in the Start menu
   during the run also gets one, for example an app the Store installs in the
