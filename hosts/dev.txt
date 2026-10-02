@@ -4,7 +4,6 @@ parts/tools/bulk-crap-uninstaller
 parts/tools/winfsp
 parts/tools/windows-adk
 parts/windows/long-paths
-parts/windows/display-resolution
 parts/windows/developer-mode
 parts/dev/ssh
 parts/dev/git
@@ -15,3 +14,5 @@ parts/dev/vscode
 parts/dev/claude-code
 parts/apps/winrar
 parts/apps/librewolf
+parts/office/microsoft-365
+parts/tools/massgrave.ps1

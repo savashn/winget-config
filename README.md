@@ -76,9 +76,13 @@ winget configure -f out\office.winget --accept-configuration-agreements
 
 The command is repeatable; steps that are already installed or already set are skipped. One failing step does not stop the others, so check the output when it finishes.
 
-### Building A Bootable ISO Per Host
+## Building A Bootable ISO Per Host
 
 `iso\build-iso.ps1` turns the official Windows 11 ISO into one unattended install ISO per host (`out\win-<host>.iso`). Booting it installs Windows without asking anything and, on the first logon, applies that host's `.winget` file in the background.
+
+> [!CAUTION]
+> 
+> Use it at your own risk. I use this only for my VMs.
 
 > [!WARNING]
 > The ISO wipes disk 0 without asking. It also creates a local administrator named `User` with **no password**, sets the Turkish (`tr-TR`) locale and the Turkey time zone. Edit `iso\autounattend.template.xml` if that is not what you want.
@@ -108,10 +112,6 @@ What ends up on the installed machine:
 | `C:\ProvisioningData\<host>.log` | Everything winget printed during that run, plus the step results |
 
 The script waits for an internet connection before anything else and says so in the window; it goes on by itself a few seconds after the machine is online. Then it installs Windows updates before winget runs, the ones the Settings page would install by itself (no optional updates). Otherwise Windows installs them in the background at the same time and MSI-based packages fail with "another installation is in progress". When an update needs a restart, the script restarts the machine, signs in automatically and carries on. It stops restarting after five restarts, and it goes on to the apps if Windows Update fails. Then it checks winget: Windows 11 registers it shortly after the first logon, and on Windows 10, which has no winget at all, the script downloads and installs App Installer (about 200 MB) from the `microsoft/winget-cli` release, signature checked.
-
-Setup and the first logon need no input. After the desktop appears, a PowerShell window titled "Setting up this computer" shows the progress: one line per finished step (`[  OK  ]` or `[ FAIL ]`), and under it the step in progress with a spinner and its running time, for example `[ / ] [3/14] Installing AnyDesk (01:12)`. The window title shows the same counter. It can take a long time; as long as the spinner moves, it is working. At the end it prints a `SETUP COMPLETE` or `SETUP FINISHED WITH ERRORS` banner, beeps, and waits for Enter. winget's own output goes only to the log. If the `Provisioning` value is still under `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce`, the script never started. While a run is in progress, the scheduled task `winget-config provisioning` starts the script again at every logon, so a crash or a closed window does not lose it; the task and the automatic logon are removed when the run ends.
-
-Desktop shortcuts are made from what appeared in the Start menu while the configuration ran (copies of new Start menu shortcuts, and links to new Store/MSIX apps), plus portable winget packages that are GUI programs. Uninstall, help and website entries, `...Tools` folders, and anything already on a desktop are skipped. This only happens in this ISO flow; running `winget configure` by hand creates no shortcuts.
 
 #### Testing in QEMU before using real hardware
 
